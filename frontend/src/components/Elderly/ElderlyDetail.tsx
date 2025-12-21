@@ -1,27 +1,20 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import clsx from 'clsx';
 import { useElderly } from '@/hooks/useElderly';
 import { useCalls } from '@/hooks/useCalls';
-import { useStore } from '@/store/useStore';
 import { elderlyService } from '@/services/elderly';
-import { RiskBadge, StatusBadge } from '@/components/Common/Badge';
-import { ListItemSkeleton } from '@/components/Common/Skeleton';
-import EmptyState from '@/components/Common/EmptyState';
-import { callsToEvents, formatScheduleTime, formatRelativeTime } from '@/utils/eventMapper';
-import { EVENT_SEVERITY_COLORS, CALL_STATUS } from '@/utils/constants';
-import { Event } from '@/types/events';
-import { format, parseISO, addDays, startOfDay, isSameDay } from 'date-fns';
-import { ko } from 'date-fns/locale';
-import clsx from 'clsx';
+import { RiskBadge } from '@/components/Common/Badge';
+import { SummaryTab, ScheduleTab, CallsTab, DevicesTab, NotificationsTab } from './Tabs';
 
 interface ElderlyDetailProps {
   elderlyId: number;
 }
 
-type TabType = 'timeline' | 'schedule' | 'calls' | 'insights' | 'pairing';
+type TabType = 'summary' | 'schedule' | 'calls' | 'devices' | 'notifications';
 
 interface PairingDevice {
   id: number;
@@ -30,111 +23,40 @@ interface PairingDevice {
   last_used_at: string | null;
 }
 
-interface PairingStatus {
-  elderly_id: number;
-  has_active_code: boolean;
-  code_expires_at: string | null;
-  paired_devices: PairingDevice[];
-  device_count: number;
-}
-
 export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
   const router = useRouter();
   const { currentElderly, elderlyLoading, fetchById, delete: deleteElderly } = useElderly();
   const { callsList, startCall, fetchList: fetchCalls, callsLoading } = useCalls();
-  const [activeTab, setActiveTab] = useState<TabType>('timeline');
+  const [activeTab, setActiveTab] = useState<TabType>('summary');
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [connectedDevice, setConnectedDevice] = useState<PairingDevice | null>(null);
 
-  // Pairing state
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [pairingExpiry, setPairingExpiry] = useState<Date | null>(null);
-  const [pairingStatus, setPairingStatus] = useState<PairingStatus | null>(null);
-  const [pairingLoading, setPairingLoading] = useState(false);
-  const [countdown, setCountdown] = useState<string>('');
-
-  useEffect(() => {
-    Promise.all([
-      fetchById(elderlyId),
-      fetchCalls(elderlyId),
-      fetchPairingStatus(),
-    ]).finally(() => setDataLoaded(true));
+  // 데이터 로드
+  const loadData = useCallback(async () => {
+    try {
+      await Promise.all([
+        fetchById(elderlyId),
+        fetchCalls(elderlyId),
+        fetchPairingStatus(),
+      ]);
+    } finally {
+      setDataLoaded(true);
+    }
   }, [elderlyId, fetchById, fetchCalls]);
 
-  // Refresh pairing status when pairing tab is active
   useEffect(() => {
-    if (activeTab === 'pairing') {
-      fetchPairingStatus();
-    }
-  }, [activeTab, elderlyId]);
+    loadData();
+  }, [loadData]);
 
-  // Countdown timer for pairing code expiry
-  useEffect(() => {
-    if (!pairingExpiry) {
-      setCountdown('');
-      return;
-    }
-
-    const updateCountdown = () => {
-      const now = new Date();
-      const diff = pairingExpiry.getTime() - now.getTime();
-
-      if (diff <= 0) {
-        setCountdown('만료됨');
-        setPairingCode(null);
-        setPairingExpiry(null);
-        return;
-      }
-
-      const minutes = Math.floor(diff / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-      setCountdown(`${minutes}:${seconds.toString().padStart(2, '0')}`);
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [pairingExpiry]);
-
+  // 페어링 상태 조회
   const fetchPairingStatus = async () => {
     try {
       const status = await elderlyService.getPairingStatus(elderlyId);
-      setPairingStatus(status);
+      setConnectedDevice(status.paired_devices?.[0] || null);
     } catch (error) {
       console.error('Failed to fetch pairing status:', error);
     }
   };
-
-  const handleGeneratePairingCode = async () => {
-    setPairingLoading(true);
-    try {
-      const result = await elderlyService.generatePairingCode(elderlyId);
-      setPairingCode(result.code);
-      // Ensure UTC time is parsed correctly by adding 'Z' suffix if missing
-      const expiresAt = result.expires_at.endsWith('Z')
-        ? result.expires_at
-        : result.expires_at + 'Z';
-      setPairingExpiry(new Date(expiresAt));
-      await fetchPairingStatus();
-    } catch (error) {
-      console.error('Failed to generate pairing code:', error);
-    } finally {
-      setPairingLoading(false);
-    }
-  };
-
-  const handleDisconnectDevice = async (deviceId: number) => {
-    if (!window.confirm('기기 연결을 해제하시겠습니까?')) return;
-
-    try {
-      await elderlyService.disconnectDevice(elderlyId, deviceId);
-      await fetchPairingStatus();
-    } catch (error) {
-      console.error('Failed to disconnect device:', error);
-    }
-  };
-
-  // Get the connected device (single device per elderly)
-  const connectedDevice = pairingStatus?.paired_devices?.[0] || null;
 
   // 이 어르신의 통화만 필터
   const elderlyCalls = useMemo(
@@ -142,59 +64,9 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
     [callsList, elderlyId]
   );
 
-  // 이벤트 목록
-  const events = useMemo(() => {
-    if (!currentElderly) return [];
-    const elderlyMap = new Map([[elderlyId, currentElderly.name]]);
-    return callsToEvents(elderlyCalls, elderlyMap).sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-  }, [elderlyCalls, currentElderly, elderlyId]);
-
-  // 다음 7일 미리보기
-  const next7DaysPreview = useMemo(() => {
-    if (!currentElderly?.call_schedule.enabled) return [];
-    const times = currentElderly.call_schedule.times;
-    const preview: { date: Date; times: string[] }[] = [];
-    const today = startOfDay(new Date());
-
-    for (let i = 0; i < 7; i++) {
-      const date = addDays(today, i);
-      preview.push({ date, times });
-    }
-    return preview;
-  }, [currentElderly]);
-
-  // 분석 결과 집계
-  const insights = useMemo(() => {
-    const completedWithAnalysis = elderlyCalls.filter((c) => c.analysis);
-    if (completedWithAnalysis.length === 0) return null;
-
-    const riskCounts = { low: 0, medium: 0, high: 0 };
-    let totalSentiment = 0;
-    const allRecommendations: string[] = [];
-
-    completedWithAnalysis.forEach((c) => {
-      if (c.analysis) {
-        riskCounts[c.analysis.risk_level]++;
-        totalSentiment += c.analysis.sentiment_score;
-        if (c.analysis.recommendations) {
-          allRecommendations.push(...c.analysis.recommendations);
-        }
-      }
-    });
-
-    return {
-      totalCalls: completedWithAnalysis.length,
-      riskCounts,
-      avgSentiment: totalSentiment / completedWithAnalysis.length,
-      topRecommendations: [...new Set(allRecommendations)].slice(0, 5),
-      recentAnalysis: completedWithAnalysis[0]?.analysis,
-    };
-  }, [elderlyCalls]);
-
+  // 삭제 핸들러
   const handleDelete = async () => {
-    if (window.confirm('정말로 삭제하시겠습니까?')) {
+    if (window.confirm(`${currentElderly?.name}님의 정보를 삭제하시겠습니까?\n삭제된 정보는 복구할 수 없습니다.`)) {
       try {
         await deleteElderly(elderlyId);
         router.push('/elderly');
@@ -204,6 +76,7 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
     }
   };
 
+  // 상담 시작 핸들러
   const handleStartCall = async () => {
     try {
       const call = await startCall(elderlyId);
@@ -213,32 +86,81 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
     }
   };
 
+  // 로딩 상태
   if (elderlyLoading || !currentElderly) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
+          <span className="text-gray-600">정보를 불러오는 중...</span>
+        </div>
       </div>
     );
   }
 
-  const tabs: { id: TabType; label: string; count?: number }[] = [
-    { id: 'timeline', label: '타임라인', count: events.length },
-    { id: 'schedule', label: '스케줄' },
-    { id: 'calls', label: '상담 내역', count: elderlyCalls.length },
-    { id: 'insights', label: '인사이트' },
-    { id: 'pairing', label: '기기 연결', count: connectedDevice ? 1 : undefined },
+  // 탭 정의
+  const tabs: { id: TabType; label: string; count?: number; icon: React.ReactNode }[] = [
+    {
+      id: 'summary',
+      label: '요약',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'schedule',
+      label: '스케줄',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'calls',
+      label: '상담 내역',
+      count: elderlyCalls.length,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'devices',
+      label: '기기 연결',
+      count: connectedDevice ? 1 : undefined,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'notifications',
+      label: '알림',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+      ),
+    },
   ];
 
   return (
     <div className="space-y-6">
-      {/* 상단 프로필 */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      {/* 상단 프로필 카드 */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          {/* 왼쪽: 프로필 정보 */}
           <div className="flex items-start gap-4">
             {/* 뒤로가기 */}
             <button
               onClick={() => router.back()}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="뒤로가기"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -252,33 +174,73 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
               </div>
 
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
-                {currentElderly.age && <span>{currentElderly.age}세</span>}
-                {currentElderly.phone && <span>{currentElderly.phone}</span>}
-                {currentElderly.address && <span>{currentElderly.address}</span>}
+                {currentElderly.age && (
+                  <span className="flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    {currentElderly.age}세
+                  </span>
+                )}
+                {currentElderly.phone && (
+                  <span className="flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    {currentElderly.phone}
+                  </span>
+                )}
+                {currentElderly.address && (
+                  <span className="flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {currentElderly.address}
+                  </span>
+                )}
               </div>
 
               {/* 디바이스 상태 */}
               <div className="flex items-center gap-2 mt-3">
                 {connectedDevice ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-50 text-green-700 rounded-full">
-                    <span className="w-2 h-2 bg-green-500 rounded-full" />
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-full border border-green-200">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     디바이스 연결됨
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-full">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full" />
-                    디바이스 미등록
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-orange-50 text-orange-700 rounded-full border border-orange-200">
+                    <span className="w-2 h-2 bg-orange-400 rounded-full" />
+                    디바이스 미연결
+                  </span>
+                )}
+                {currentElderly.call_schedule.enabled ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+                    자동상담 ON
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full border border-gray-200">
+                    자동상담 OFF
                   </span>
                 )}
               </div>
             </div>
           </div>
 
-          {/* 액션 버튼 */}
+          {/* 오른쪽: 액션 버튼 */}
           <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleStartCall}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              상담 시작
+            </button>
             <Link
               href={`/elderly/${elderlyId}/edit`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -287,7 +249,7 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
             </Link>
             <button
               onClick={handleDelete}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -299,375 +261,70 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
       </div>
 
       {/* 탭 네비게이션 */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-4" aria-label="Tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={clsx(
-                'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
-                activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              )}
-            >
-              {tab.label}
-              {tab.count !== undefined && (
-                <span className="ml-2 px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* 탭 콘텐츠 */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        {/* 타임라인 탭 */}
-        {activeTab === 'timeline' && (
-          <div className="p-6">
-            {events.length === 0 ? (
-              <EmptyState
-                title="이벤트가 없습니다"
-                description="아직 기록된 이벤트가 없습니다."
-              />
-            ) : (
-              <div className="relative">
-                <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
-                <div className="space-y-4">
-                  {events.map((event) => {
-                    const colors = EVENT_SEVERITY_COLORS[event.severity];
-                    return (
-                      <div key={event.id} className="relative flex items-start gap-3 pl-1">
-                        <div className={clsx(
-                          'relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ring-4 ring-white',
-                          colors.bg, colors.icon
-                        )}>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0 pb-4">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{event.title}</p>
-                              <p className="text-sm text-gray-500">{event.description}</p>
-                            </div>
-                            <span className="text-xs text-gray-400 whitespace-nowrap">
-                              {formatRelativeTime(event.timestamp)}
-                            </span>
-                          </div>
-                          {event.cta && (
-                            <Link
-                              href={event.cta.href}
-                              className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-700"
-                            >
-                              {event.cta.label}
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 스케줄 탭 */}
-        {activeTab === 'schedule' && (
-          <div className="p-6 space-y-6">
-            {/* 현재 스케줄 상태 */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className={clsx(
-                  'w-10 h-10 rounded-full flex items-center justify-center',
-                  currentElderly.call_schedule.enabled ? 'bg-green-100' : 'bg-gray-100'
-                )}>
-                  <svg className={clsx(
-                    'w-5 h-5',
-                    currentElderly.call_schedule.enabled ? 'text-green-600' : 'text-gray-400'
-                  )} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">
-                    자동 상담 {currentElderly.call_schedule.enabled ? '활성화' : '비활성화'}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {currentElderly.call_schedule.enabled
-                      ? `매일 ${currentElderly.call_schedule.times.map(formatScheduleTime).join(', ')}`
-                      : '스케줄이 설정되지 않았습니다'}
-                  </p>
-                </div>
-              </div>
-              <Link
-                href={`/elderly/${elderlyId}/edit`}
-                className="px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="border-b border-gray-200">
+          <nav className="flex overflow-x-auto" aria-label="Tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={clsx(
+                  'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors',
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                )}
+                aria-current={activeTab === tab.id ? 'page' : undefined}
               >
-                스케줄 수정
-              </Link>
-            </div>
-
-            {/* 다음 7일 미리보기 */}
-            {currentElderly.call_schedule.enabled && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">다음 7일 미리보기</h3>
-                <div className="grid grid-cols-7 gap-2">
-                  {next7DaysPreview.map((day, i) => {
-                    const isToday = isSameDay(day.date, new Date());
-                    return (
-                      <div
-                        key={i}
-                        className={clsx(
-                          'p-3 rounded-lg text-center',
-                          isToday ? 'bg-blue-50 border-2 border-blue-200' : 'bg-gray-50'
-                        )}
-                      >
-                        <p className={clsx(
-                          'text-xs font-medium',
-                          isToday ? 'text-blue-600' : 'text-gray-500'
-                        )}>
-                          {format(day.date, 'EEE', { locale: ko })}
-                        </p>
-                        <p className={clsx(
-                          'text-lg font-bold',
-                          isToday ? 'text-blue-700' : 'text-gray-700'
-                        )}>
-                          {format(day.date, 'd')}
-                        </p>
-                        <div className="mt-2 space-y-1">
-                          {day.times.map((time, j) => (
-                            <span
-                              key={j}
-                              className={clsx(
-                                'block text-xs px-1 py-0.5 rounded',
-                                isToday ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'
-                              )}
-                            >
-                              {time}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 상담 내역 탭 */}
-        {activeTab === 'calls' && (
-          <div className="divide-y divide-gray-200">
-            {elderlyCalls.length === 0 ? (
-              <div className="p-6">
-                <EmptyState
-                  title="상담 내역이 없습니다"
-                  description="아직 진행된 상담이 없습니다."
-                  action={{
-                    label: '상담 시작',
-                    onClick: handleStartCall,
-                  }}
-                />
-              </div>
-            ) : (
-              elderlyCalls.map((call) => (
-                <Link
-                  key={call.id}
-                  href={`/calls/${call.id}`}
-                  className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <StatusBadge status={call.status} />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        통화 #{call.id}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {format(parseISO(call.scheduled_for || call.started_at || call.created_at), 'M월 d일 HH:mm', { locale: ko })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {call.analysis && (
-                      <RiskBadge level={call.analysis.risk_level} size="sm" />
+                {tab.icon}
+                {tab.label}
+                {tab.count !== undefined && (
+                  <span
+                    className={clsx(
+                      'px-2 py-0.5 text-xs rounded-full',
+                      activeTab === tab.id
+                        ? 'bg-blue-100 text-blue-600'
+                        : 'bg-gray-100 text-gray-600'
                     )}
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </Link>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* 인사이트 탭 */}
-        {activeTab === 'insights' && (
-          <div className="p-6">
-            {!insights ? (
-              <EmptyState
-                title="분석 데이터가 없습니다"
-                description="상담 완료 후 분석 결과가 표시됩니다."
-              />
-            ) : (
-              <div className="space-y-6">
-                {/* 통계 카드 */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-sm font-medium text-gray-500">총 상담</p>
-                    <p className="text-2xl font-bold text-gray-900">{insights.totalCalls}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-sm font-medium text-gray-500">평균 감정 점수</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {(insights.avgSentiment * 100).toFixed(0)}%
-                    </p>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-4">
-                    <p className="text-sm font-medium text-green-600">낮은 위험도</p>
-                    <p className="text-2xl font-bold text-green-700">{insights.riskCounts.low}</p>
-                  </div>
-                  <div className="bg-red-50 rounded-lg p-4">
-                    <p className="text-sm font-medium text-red-600">높은 위험도</p>
-                    <p className="text-2xl font-bold text-red-700">{insights.riskCounts.high}</p>
-                  </div>
-                </div>
-
-                {/* 권장 사항 */}
-                {insights.topRecommendations.length > 0 && (
-                  <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-                    <h4 className="text-sm font-medium text-blue-800 mb-3">주요 권장 사항</h4>
-                    <ul className="space-y-2">
-                      {insights.topRecommendations.map((rec, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-blue-900">
-                          <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {rec}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* 최근 분석 */}
-                {insights.recentAnalysis && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-gray-500 mb-2">최근 분석 요약</h4>
-                    <p className="text-gray-900">{insights.recentAnalysis.summary}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 기기 연결 탭 */}
-        {activeTab === 'pairing' && (
-          <div className="p-6 space-y-6">
-            {connectedDevice ? (
-              /* 기기가 연결된 경우 */
-              <>
-                <div className="bg-green-50 rounded-lg border border-green-200 p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
-                        <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-green-900">
-                          {connectedDevice.device_name || `${connectedDevice.platform.toUpperCase()} 기기`}
-                        </h3>
-                        <p className="text-sm text-green-700">
-                          {connectedDevice.last_used_at
-                            ? `마지막 사용: ${formatRelativeTime(connectedDevice.last_used_at)}`
-                            : '아직 사용 기록 없음'}
-                        </p>
-                        <span className="inline-flex items-center gap-1 mt-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
-                          <span className="w-2 h-2 bg-green-500 rounded-full" />
-                          연결됨
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">기기 변경이 필요하신가요?</h4>
-                  <p className="text-sm text-gray-500 mb-4">
-                    새 기기로 변경하려면 먼저 현재 기기 연결을 해제한 후, 새 기기에서 페어링 코드를 입력하세요.
-                  </p>
-                  <button
-                    onClick={() => handleDisconnectDevice(connectedDevice.id)}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                    </svg>
-                    연결 해제
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* 기기가 연결되지 않은 경우 */
-              <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">iOS 앱 연결</h3>
-                <p className="text-sm text-blue-700 mb-4">
-                  어르신의 iOS 기기에서 SORI 앱을 열고 아래 코드를 입력하세요.
-                </p>
-
-                {pairingCode ? (
-                  <div className="text-center py-6">
-                    <div className="inline-flex gap-2 mb-4">
-                      {pairingCode.split('').map((digit, i) => (
-                        <span
-                          key={i}
-                          className="w-12 h-14 flex items-center justify-center text-2xl font-bold bg-white text-blue-900 rounded-lg border-2 border-blue-300"
-                        >
-                          {digit}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-sm text-blue-600">
-                      {countdown === '만료됨' ? (
-                        <span className="text-red-600">코드가 만료되었습니다</span>
-                      ) : (
-                        <>남은 시간: <span className="font-mono font-bold">{countdown}</span></>
-                      )}
-                    </p>
-                    <button
-                      onClick={handleGeneratePairingCode}
-                      disabled={pairingLoading}
-                      className="mt-4 py-2 px-4 text-blue-600 font-medium rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                      새 코드 생성
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleGeneratePairingCode}
-                    disabled={pairingLoading}
-                    className="w-full py-3 px-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                  >
-                    {pairingLoading ? '생성 중...' : '페어링 코드 생성'}
-                  </button>
+                    {tab.count}
+                  </span>
                 )}
-              </div>
-            )}
-          </div>
-        )}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* 탭 콘텐츠 */}
+        <div>
+          {activeTab === 'summary' && (
+            <SummaryTab
+              elderly={currentElderly}
+              recentCalls={elderlyCalls}
+              connectedDevice={connectedDevice}
+              onStartCall={handleStartCall}
+            />
+          )}
+          {activeTab === 'schedule' && (
+            <ScheduleTab elderly={currentElderly} />
+          )}
+          {activeTab === 'calls' && (
+            <CallsTab
+              calls={elderlyCalls}
+              loading={callsLoading && !dataLoaded}
+              onStartCall={handleStartCall}
+            />
+          )}
+          {activeTab === 'devices' && (
+            <DevicesTab
+              elderlyId={elderlyId}
+              elderlyName={currentElderly.name}
+            />
+          )}
+          {activeTab === 'notifications' && (
+            <NotificationsTab elderly={currentElderly} />
+          )}
+        </div>
       </div>
     </div>
   );

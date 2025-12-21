@@ -17,9 +17,18 @@ final class FirebaseService: NSObject {
     static let shared = FirebaseService()
 
     private var fcmToken: String?
+    private var pendingTokenCallbacks: [(String?) -> Void] = []
+    private var isWaitingForToken = false
+    private let keychainService = KeychainService.shared
+
+    // Maximum retries for FCM token
+    private let maxTokenRetries = 3
+    private var tokenRetryCount = 0
 
     private override init() {
         super.init()
+        // Load cached FCM token
+        fcmToken = keychainService.getFCMToken()
     }
 
     // MARK: - Firebase Configuration
@@ -28,6 +37,8 @@ final class FirebaseService: NSObject {
         // Uncomment when Firebase SDK is added:
         // FirebaseApp.configure()
         // Messaging.messaging().delegate = self
+
+        print("[Firebase] Configuration complete")
     }
 
     // MARK: - Notification Registration
@@ -38,38 +49,138 @@ final class FirebaseService: NSObject {
         }
     }
 
+    func requestNotificationPermission(completion: @escaping (Bool) -> Void) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .badge, .sound]) { [weak self] granted, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("[Firebase] Notification permission error: \(error.localizedDescription)")
+                }
+
+                if granted {
+                    self?.registerForNotifications()
+                    print("[Firebase] Notification permission granted")
+                } else {
+                    print("[Firebase] Notification permission denied")
+                }
+
+                completion(granted)
+            }
+        }
+    }
+
+    // MARK: - FCM Token Management
+
+    /// Get FCM token with callback
     func getFCMToken(completion: @escaping (String?) -> Void) {
-        // If we have a cached token, return it
-        if let token = fcmToken {
+        // If we have a cached token, return it immediately
+        if let token = fcmToken, !token.isEmpty {
             completion(token)
             return
         }
 
+        // Add to pending callbacks
+        pendingTokenCallbacks.append(completion)
+
+        // If already waiting, don't start another fetch
+        if isWaitingForToken {
+            return
+        }
+
+        isWaitingForToken = true
+        fetchFCMToken()
+    }
+
+    /// Get FCM token with async/await
+    func getFCMTokenAsync() async -> String? {
+        return await withCheckedContinuation { continuation in
+            getFCMToken { token in
+                continuation.resume(returning: token)
+            }
+        }
+    }
+
+    /// Fetch FCM token with retry logic
+    private func fetchFCMToken() {
         // Uncomment when Firebase SDK is added:
         // Messaging.messaging().token { [weak self] token, error in
+        //     guard let self = self else { return }
+        //
         //     if let error = error {
-        //         print("Error fetching FCM token: \(error)")
-        //         completion(nil)
-        //     } else if let token = token {
-        //         self?.fcmToken = token
-        //         completion(token)
+        //         print("[Firebase] Error fetching FCM token: \(error.localizedDescription)")
+        //         self.handleTokenFetchFailure()
+        //         return
+        //     }
+        //
+        //     if let token = token {
+        //         self.handleTokenReceived(token)
+        //     } else {
+        //         self.handleTokenFetchFailure()
         //     }
         // }
 
-        // For now, return nil (Firebase not configured)
-        completion(nil)
+        // For development without Firebase:
+        // Generate a placeholder token for testing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            let placeholderToken = "dev_fcm_token_\(UUID().uuidString.prefix(8))"
+            self?.handleTokenReceived(placeholderToken)
+        }
     }
 
-    func requestNotificationPermission(completion: @escaping (Bool) -> Void) {
-        let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
-            DispatchQueue.main.async {
-                if granted {
-                    self.registerForNotifications()
-                }
-                completion(granted)
+    private func handleTokenReceived(_ token: String) {
+        fcmToken = token
+        tokenRetryCount = 0
+        isWaitingForToken = false
+
+        // Save to keychain
+        _ = keychainService.saveFCMToken(token)
+
+        // Notify all pending callbacks
+        let callbacks = pendingTokenCallbacks
+        pendingTokenCallbacks.removeAll()
+        callbacks.forEach { $0(token) }
+
+        // Post notification
+        NotificationCenter.default.post(
+            name: NotificationNames.fcmTokenReceived,
+            object: nil,
+            userInfo: ["token": token]
+        )
+
+        print("[Firebase] FCM token received")
+    }
+
+    private func handleTokenFetchFailure() {
+        tokenRetryCount += 1
+
+        if tokenRetryCount < maxTokenRetries {
+            // Retry after delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(tokenRetryCount) * 2.0) { [weak self] in
+                self?.fetchFCMToken()
             }
+        } else {
+            // Max retries reached
+            isWaitingForToken = false
+            tokenRetryCount = 0
+
+            let callbacks = pendingTokenCallbacks
+            pendingTokenCallbacks.removeAll()
+            callbacks.forEach { $0(nil) }
+
+            print("[Firebase] Failed to fetch FCM token after \(maxTokenRetries) retries")
         }
+    }
+
+    /// Check if FCM token is available
+    var hasFCMToken: Bool {
+        return fcmToken != nil && !fcmToken!.isEmpty
+    }
+
+    /// Force refresh FCM token
+    func refreshFCMToken() {
+        fcmToken = nil
+        _ = keychainService.delete(forKey: KeychainKeys.fcmToken)
+        fetchFCMToken()
     }
 
     // MARK: - Handle APNS Token
@@ -79,36 +190,117 @@ final class FirebaseService: NSObject {
         // Messaging.messaging().apnsToken = deviceToken
 
         let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        print("APNS Token: \(token)")
+        print("[Firebase] APNS Token: \(token.prefix(20))...")
     }
 
     // MARK: - Handle Incoming Notification
 
     func handleNotification(userInfo: [AnyHashable: Any]) {
-        // Check for scheduled call notification
-        if let callIdString = userInfo["call_id"] as? String,
-           let callId = Int(callIdString) {
-            // Post notification to trigger call view
-            NotificationCenter.default.post(
-                name: Notification.Name("incomingCall"),
-                object: nil,
-                userInfo: ["call_id": callId]
-            )
+        print("[Firebase] Handling notification: \(userInfo.keys)")
+
+        // Parse notification type
+        let notificationType = userInfo["type"] as? String ?? ""
+
+        // Parse call_id (FCM data is always String)
+        var callId: Int?
+        if let callIdString = userInfo["call_id"] as? String {
+            callId = Int(callIdString)
+        } else if let callIdInt = userInfo["call_id"] as? Int {
+            callId = callIdInt
         }
+
+        // Parse elderly_id
+        var elderlyId: Int?
+        if let elderlyIdString = userInfo["elderly_id"] as? String {
+            elderlyId = Int(elderlyIdString)
+        } else if let elderlyIdInt = userInfo["elderly_id"] as? Int {
+            elderlyId = elderlyIdInt
+        }
+
+        // Handle based on notification type
+        switch notificationType {
+        case "scheduled_call", "incoming_call":
+            if let callId = callId {
+                postNavigateToCall(callId: callId, elderlyId: elderlyId)
+            }
+
+        case "missed_call":
+            // Navigate to home with missed call info
+            NotificationCenter.default.post(
+                name: NotificationNames.incomingCall,
+                object: nil,
+                userInfo: [
+                    "type": "missed_call",
+                    "call_id": callId as Any,
+                    "elderly_id": elderlyId as Any
+                ]
+            )
+
+        case "high_risk":
+            // Navigate to home with high risk alert
+            NotificationCenter.default.post(
+                name: NotificationNames.incomingCall,
+                object: nil,
+                userInfo: [
+                    "type": "high_risk",
+                    "elderly_id": elderlyId as Any
+                ]
+            )
+
+        default:
+            // Generic call notification
+            if let callId = callId {
+                postNavigateToCall(callId: callId, elderlyId: elderlyId)
+            }
+        }
+    }
+
+    private func postNavigateToCall(callId: Int, elderlyId: Int?) {
+        var userInfo: [String: Any] = ["call_id": callId]
+        if let elderlyId = elderlyId {
+            userInfo["elderly_id"] = elderlyId
+        }
+
+        NotificationCenter.default.post(
+            name: NotificationNames.navigateToCall,
+            object: nil,
+            userInfo: userInfo
+        )
+
+        // Also post to incomingCall for backward compatibility
+        NotificationCenter.default.post(
+            name: NotificationNames.incomingCall,
+            object: nil,
+            userInfo: ["call_id": callId]
+        )
     }
 }
 
 // MARK: - MessagingDelegate
 // Uncomment when Firebase SDK is added:
 
-// extension FirebaseService: MessagingDelegate {
-//     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-//         print("FCM Token: \(fcmToken ?? "nil")")
-//         self.fcmToken = fcmToken
-//
-//         // If paired, update token on server
-//         if PairingService.shared.isDevicePaired() {
-//             // TODO: Call API to update FCM token
-//         }
-//     }
-// }
+/*
+extension FirebaseService: MessagingDelegate {
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let token = fcmToken else {
+            print("[Firebase] FCM token is nil")
+            return
+        }
+
+        print("[Firebase] FCM Token refreshed")
+        handleTokenReceived(token)
+
+        // If device is paired, update FCM token on server
+        if PairingService.shared.isDevicePaired() {
+            updateFCMTokenOnServer(token)
+        }
+    }
+
+    private func updateFCMTokenOnServer(_ token: String) {
+        // TODO: Implement API call to update FCM token
+        // POST /api/device/update-fcm-token
+        // Body: { "fcm_token": token }
+        // Auth: device_access_token
+    }
+}
+*/

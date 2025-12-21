@@ -1,89 +1,203 @@
 import Foundation
 import Combine
+import UIKit
 
 @MainActor
 final class PairingViewModel: ObservableObject {
+    // MARK: - Published Properties
+
     @Published var code: String = ""
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var isPaired = false
     @Published var elderlyId: Int?
+    @Published var showRetryButton = false
+    @Published var requiresNewCode = false
+    @Published var showPermissionAlert = false
+
+    // MARK: - Private Properties
 
     private let pairingService = PairingService.shared
     private let firebaseService = FirebaseService.shared
     private var cancellables = Set<AnyCancellable>()
+    private var fcmRetryCount = 0
+    private let maxFCMRetries = 2
+
+    // MARK: - Initialization
 
     init() {
         checkPairingStatus()
+        setupTokenInvalidObserver()
     }
+
+    // MARK: - Setup
+
+    private func setupTokenInvalidObserver() {
+        NotificationCenter.default.publisher(for: NotificationNames.tokenInvalid)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.handleTokenInvalid()
+            }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Public Methods
 
     func checkPairingStatus() {
         isPaired = pairingService.isDevicePaired()
         elderlyId = pairingService.getElderlyId()
+
+        if isPaired {
+            print("[PairingVM] Device is paired with elderly ID: \(elderlyId ?? -1)")
+        }
     }
 
     func submitCode() {
         // Validate code format
-        guard code.count == 6, code.allSatisfy({ $0.isNumber }) else {
-            errorMessage = "6자리 숫자 코드를 입력해주세요"
+        guard code.count == ValidationRules.pairingCodeLength,
+              code.allSatisfy({ $0.isNumber }) else {
+            errorMessage = PairingErrorMessages.invalidCode
+            showRetryButton = true
             return
         }
 
         isLoading = true
         errorMessage = nil
+        showRetryButton = false
+        requiresNewCode = false
 
-        // Get FCM token first
-        firebaseService.getFCMToken { [weak self] fcmToken in
-            guard let self = self else { return }
-
-            // Use a placeholder token if FCM is not available yet
-            let token = fcmToken ?? "placeholder_token_\(UUID().uuidString)"
-
-            Task { @MainActor in
-                self.performClaim(with: token)
-            }
+        // Request notification permission first if needed
+        requestNotificationPermissionIfNeeded { [weak self] in
+            self?.getFCMTokenAndSubmit()
         }
     }
 
-    private func performClaim(with fcmToken: String) {
-        pairingService.claimPairingCodePublisher(code: code, fcmToken: fcmToken)
-            .sink { [weak self] completion in
-                self?.isLoading = false
-                if case .failure(let error) = completion {
-                    self?.handleError(error)
-                }
-            } receiveValue: { [weak self] response in
-                self?.isPaired = true
-                self?.elderlyId = response.elderly_id
-                self?.code = ""
-            }
-            .store(in: &cancellables)
+    func retry() {
+        clearError()
+        if code.count == ValidationRules.pairingCodeLength {
+            submitCode()
+        }
     }
 
-    private func handleError(_ error: APIError) {
-        switch error {
-        case .apiError(let message):
-            if message.contains("만료") {
-                errorMessage = "코드가 만료되었습니다. 보호자에게 새 코드를 요청하세요."
-            } else if message.contains("잘못된") {
-                errorMessage = "잘못된 코드입니다. 다시 확인해주세요."
-            } else if message.contains("너무 많은") {
-                errorMessage = "너무 많은 시도입니다. 잠시 후 다시 시도하세요."
-            } else {
-                errorMessage = message
-            }
-        default:
-            errorMessage = "연결에 실패했습니다. 다시 시도해주세요."
-        }
+    func clearCode() {
+        code = ""
+        clearError()
+    }
+
+    func clearError() {
+        errorMessage = nil
+        showRetryButton = false
+        requiresNewCode = false
     }
 
     func unpair() {
         pairingService.clearPairing()
         isPaired = false
         elderlyId = nil
+        code = ""
+        clearError()
     }
 
-    func clearError() {
+    func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+    }
+
+    // MARK: - Private Methods
+
+    private func requestNotificationPermissionIfNeeded(completion: @escaping () -> Void) {
+        firebaseService.requestNotificationPermission { _ in
+            // Proceed regardless of permission result
+            // Server will store the device but may not be able to send push
+            completion()
+        }
+    }
+
+    private func getFCMTokenAndSubmit() {
+        firebaseService.getFCMToken { [weak self] fcmToken in
+            guard let self = self else { return }
+
+            Task { @MainActor in
+                if let token = fcmToken, !token.isEmpty {
+                    self.performClaim(with: token)
+                } else {
+                    // FCM token not available - retry or show error
+                    self.handleFCMTokenMissing()
+                }
+            }
+        }
+    }
+
+    private func handleFCMTokenMissing() {
+        fcmRetryCount += 1
+
+        if fcmRetryCount <= maxFCMRetries {
+            // Auto-retry after delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                self?.getFCMTokenAndSubmit()
+            }
+        } else {
+            // Max retries reached
+            isLoading = false
+            fcmRetryCount = 0
+
+            // Use placeholder token for development
+            let placeholderToken = "placeholder_\(UUID().uuidString.prefix(8))"
+            performClaim(with: placeholderToken)
+        }
+    }
+
+    private func performClaim(with fcmToken: String) {
+        fcmRetryCount = 0
+
+        pairingService.claimPairingCode(code: code, fcmToken: fcmToken) { [weak self] result in
+            guard let self = self else { return }
+
+            Task { @MainActor in
+                self.isLoading = false
+
+                switch result {
+                case .success(let response):
+                    self.handleSuccess(response)
+
+                case .failure(let error):
+                    self.handleError(error)
+                }
+            }
+        }
+    }
+
+    private func handleSuccess(_ response: PairingClaimResponse) {
+        isPaired = true
+        elderlyId = response.elderly_id
+        code = ""
         errorMessage = nil
+        showRetryButton = false
+        requiresNewCode = false
+
+        print("[PairingVM] Pairing successful - elderly ID: \(response.elderly_id)")
+    }
+
+    private func handleError(_ error: PairingError) {
+        errorMessage = error.localizedMessage
+        requiresNewCode = error.requiresNewCode
+        showRetryButton = !error.requiresNewCode
+
+        // Clear code for security-sensitive errors
+        if case .maxAttempts = error {
+            code = ""
+        }
+
+        print("[PairingVM] Pairing error: \(error)")
+    }
+
+    private func handleTokenInvalid() {
+        isPaired = false
+        elderlyId = nil
+        code = ""
+        errorMessage = "인증이 만료되었습니다.\n다시 연결해주세요."
+        showRetryButton = false
+        requiresNewCode = true
     }
 }

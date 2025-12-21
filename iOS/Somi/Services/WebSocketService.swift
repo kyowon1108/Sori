@@ -4,15 +4,29 @@ import Combine
 final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
     static let shared = WebSocketService()
 
+    // MARK: - Publishers
+
     var messagePublisher = PassthroughSubject<ChatMessage, Never>()
     var connectionStatusPublisher = PassthroughSubject<Bool, Never>()
+    var errorPublisher = PassthroughSubject<Error, Never>()
+
+    // MARK: - Private Properties
 
     private var webSocket: URLSessionWebSocketTask?
     private var currentCallId: Int?
+    private var pingTimer: Timer?
+    private var reconnectAttempts = 0
+    private let maxReconnectAttempts = 3
+    private var currentToken: String?
+
+    // Connection state
+    private(set) var isConnected = false
 
     override private init() {
         super.init()
     }
+
+    // MARK: - Connection Methods
 
     func connect(
         callId: Int,
@@ -20,7 +34,24 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
         onMessage: @escaping (ChatMessage) -> Void,
         onError: @escaping (Error) -> Void
     ) {
+        // Disconnect existing connection
+        if webSocket != nil {
+            disconnect()
+        }
+
         currentCallId = callId
+        currentToken = token
+        reconnectAttempts = 0
+
+        establishConnection(callId: callId, token: token, onMessage: onMessage, onError: onError)
+    }
+
+    private func establishConnection(
+        callId: Int,
+        token: String,
+        onMessage: @escaping (ChatMessage) -> Void,
+        onError: @escaping (Error) -> Void
+    ) {
         let urlString = "\(APIConstants.wsBaseURL)/ws/\(callId)?token=\(token)"
         guard let url = URL(string: urlString) else {
             onError(APIError.invalidURL)
@@ -39,9 +70,16 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
         webSocket = session.webSocketTask(with: request)
         webSocket?.resume()
 
-        connectionStatusPublisher.send(true)
+        print("[WebSocket] Connecting to call \(callId)...")
+
+        // Start receiving messages
         receiveMessages(onMessage: onMessage, onError: onError)
+
+        // Start ping timer
+        startPingTimer()
     }
+
+    // MARK: - Message Receiving
 
     private func receiveMessages(
         onMessage: @escaping (ChatMessage) -> Void,
@@ -52,43 +90,217 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
 
             switch result {
             case .success(let message):
-                switch message {
-                case .string(let text):
-                    if let data = text.data(using: .utf8),
-                       let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data),
-                       let chatMessage = self.convertWSMessageToChatMessage(wsMessage) {
-                        DispatchQueue.main.async {
-                            onMessage(chatMessage)
-                            self.messagePublisher.send(chatMessage)
-                        }
-                    }
-                    // IMPORTANT: 다음 메시지 계속 수신
-                    self.receiveMessages(onMessage: onMessage, onError: onError)
-
-                case .data(let data):
-                    if let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data),
-                       let chatMessage = self.convertWSMessageToChatMessage(wsMessage) {
-                        DispatchQueue.main.async {
-                            onMessage(chatMessage)
-                            self.messagePublisher.send(chatMessage)
-                        }
-                    }
-                    // IMPORTANT: 다음 메시지 계속 수신
-                    self.receiveMessages(onMessage: onMessage, onError: onError)
-
-                @unknown default:
-                    // IMPORTANT: 계속 수신
-                    self.receiveMessages(onMessage: onMessage, onError: onError)
-                }
+                self.handleReceivedMessage(message, onMessage: onMessage, onError: onError)
 
             case .failure(let error):
+                self.handleConnectionError(error, onError: onError)
+            }
+        }
+    }
+
+    private func handleReceivedMessage(
+        _ message: URLSessionWebSocketTask.Message,
+        onMessage: @escaping (ChatMessage) -> Void,
+        onError: @escaping (Error) -> Void
+    ) {
+        switch message {
+        case .string(let text):
+            processTextMessage(text, onMessage: onMessage)
+
+        case .data(let data):
+            processDataMessage(data, onMessage: onMessage)
+
+        @unknown default:
+            break
+        }
+
+        // Continue receiving
+        receiveMessages(onMessage: onMessage, onError: onError)
+    }
+
+    private func processTextMessage(_ text: String, onMessage: @escaping (ChatMessage) -> Void) {
+        guard let data = text.data(using: .utf8) else { return }
+
+        // Try to decode as WSMessage
+        if let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data) {
+            handleWSMessage(wsMessage, onMessage: onMessage)
+            return
+        }
+
+        // Try to decode as ping message
+        if let pingMessage = try? JSONDecoder().decode(PingMessage.self, from: data) {
+            handlePingMessage(pingMessage)
+            return
+        }
+    }
+
+    private func processDataMessage(_ data: Data, onMessage: @escaping (ChatMessage) -> Void) {
+        if let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data) {
+            handleWSMessage(wsMessage, onMessage: onMessage)
+        }
+    }
+
+    private func handleWSMessage(_ wsMessage: WSMessage, onMessage: @escaping (ChatMessage) -> Void) {
+        // Handle different message types
+        switch wsMessage.type {
+        case "ping":
+            sendPong()
+            return
+
+        case "pong":
+            // Server acknowledged our ping
+            return
+
+        case "stream_chunk":
+            // UI update only - don't send to TTS
+            if let chatMessage = convertWSMessageToChatMessage(wsMessage) {
                 DispatchQueue.main.async {
-                    self.connectionStatusPublisher.send(false)
-                    onError(error)
+                    onMessage(chatMessage)
+                    self.messagePublisher.send(chatMessage)
+                }
+            }
+
+        case "stream_end", "message", "assistant":
+            // Full message - can be sent to TTS
+            if let chatMessage = convertWSMessageToChatMessage(wsMessage) {
+                DispatchQueue.main.async {
+                    onMessage(chatMessage)
+                    self.messagePublisher.send(chatMessage)
+                }
+            }
+
+        case "error":
+            print("[WebSocket] Server error: \(wsMessage.content ?? "unknown")")
+
+        default:
+            // Handle other message types
+            if let chatMessage = convertWSMessageToChatMessage(wsMessage) {
+                DispatchQueue.main.async {
+                    onMessage(chatMessage)
+                    self.messagePublisher.send(chatMessage)
                 }
             }
         }
     }
+
+    private func handlePingMessage(_ pingMessage: PingMessage) {
+        if pingMessage.type == "ping" {
+            sendPong()
+        }
+    }
+
+    private func handleConnectionError(_ error: Error, onError: @escaping (Error) -> Void) {
+        print("[WebSocket] Connection error: \(error.localizedDescription)")
+
+        isConnected = false
+        stopPingTimer()
+
+        DispatchQueue.main.async {
+            self.connectionStatusPublisher.send(false)
+            self.errorPublisher.send(error)
+        }
+
+        // Check if we should try to reconnect
+        if shouldReconnect(error: error) {
+            attemptReconnect(onError: onError)
+        } else {
+            DispatchQueue.main.async {
+                onError(error)
+            }
+        }
+    }
+
+    // MARK: - Ping/Pong
+
+    private func startPingTimer() {
+        stopPingTimer()
+
+        DispatchQueue.main.async {
+            self.pingTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+                self?.sendPing()
+            }
+        }
+    }
+
+    private func stopPingTimer() {
+        pingTimer?.invalidate()
+        pingTimer = nil
+    }
+
+    private func sendPing() {
+        let pingMessage = ["type": "ping"]
+        if let data = try? JSONEncoder().encode(pingMessage),
+           let jsonString = String(data: data, encoding: .utf8) {
+            webSocket?.send(.string(jsonString)) { [weak self] error in
+                if let error = error {
+                    print("[WebSocket] Ping failed: \(error.localizedDescription)")
+                    self?.handlePingFailure()
+                }
+            }
+        }
+    }
+
+    private func sendPong() {
+        let pongMessage = ["type": "pong"]
+        if let data = try? JSONEncoder().encode(pongMessage),
+           let jsonString = String(data: data, encoding: .utf8) {
+            webSocket?.send(.string(jsonString)) { error in
+                if let error = error {
+                    print("[WebSocket] Pong failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func handlePingFailure() {
+        // Connection might be dead, trigger reconnect
+        if isConnected {
+            isConnected = false
+            connectionStatusPublisher.send(false)
+        }
+    }
+
+    // MARK: - Reconnection
+
+    private func shouldReconnect(error: Error) -> Bool {
+        // Don't reconnect for authentication errors
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .userAuthenticationRequired, .userCancelledAuthentication:
+                return false
+            default:
+                break
+            }
+        }
+
+        return reconnectAttempts < maxReconnectAttempts
+    }
+
+    private func attemptReconnect(onError: @escaping (Error) -> Void) {
+        reconnectAttempts += 1
+        let delay = Double(reconnectAttempts) * 2.0
+
+        print("[WebSocket] Attempting reconnect \(reconnectAttempts)/\(maxReconnectAttempts) in \(delay)s...")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self,
+                  let callId = self.currentCallId,
+                  let token = self.currentToken else {
+                return
+            }
+
+            self.establishConnection(
+                callId: callId,
+                token: token,
+                onMessage: { message in
+                    self.messagePublisher.send(message)
+                },
+                onError: onError
+            )
+        }
+    }
+
+    // MARK: - Message Conversion
 
     private func convertWSMessageToChatMessage(_ wsMessage: WSMessage) -> ChatMessage? {
         guard let content = wsMessage.content, let role = wsMessage.role else {
@@ -103,33 +315,84 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
         )
     }
 
+    // MARK: - Sending Messages
+
     func sendMessage(_ text: String) {
         let message = WSMessage(
             type: "message",
             content: text,
-            role: nil,
+            role: "user",
             is_streaming: nil
         )
 
         if let data = try? JSONEncoder().encode(message),
            let jsonString = String(data: data, encoding: .utf8) {
-            webSocket?.send(.string(jsonString)) { _ in }
+            webSocket?.send(.string(jsonString)) { error in
+                if let error = error {
+                    print("[WebSocket] Send failed: \(error.localizedDescription)")
+                }
+            }
         }
     }
 
+    // MARK: - Disconnect
+
     func disconnect() {
+        stopPingTimer()
         webSocket?.cancel(with: .goingAway, reason: nil)
         webSocket = nil
         currentCallId = nil
-        connectionStatusPublisher.send(false)
+        currentToken = nil
+        isConnected = false
+        reconnectAttempts = 0
+
+        DispatchQueue.main.async {
+            self.connectionStatusPublisher.send(false)
+        }
+
+        print("[WebSocket] Disconnected")
     }
 
     // MARK: - URLSessionWebSocketDelegate
-    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
-        connectionStatusPublisher.send(true)
+
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didOpenWithProtocol protocol: String?
+    ) {
+        print("[WebSocket] Connected successfully")
+        isConnected = true
+        reconnectAttempts = 0
+
+        DispatchQueue.main.async {
+            self.connectionStatusPublisher.send(true)
+        }
     }
 
-    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
-        connectionStatusPublisher.send(false)
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+        reason: Data?
+    ) {
+        print("[WebSocket] Closed with code: \(closeCode.rawValue)")
+        isConnected = false
+        stopPingTimer()
+
+        DispatchQueue.main.async {
+            self.connectionStatusPublisher.send(false)
+        }
+
+        // Handle unauthorized close (token rejected)
+        if closeCode == .policyViolation {
+            // Token was rejected, notify app
+            NotificationCenter.default.post(name: NotificationNames.tokenInvalid, object: nil)
+        }
     }
+}
+
+// MARK: - Ping Message Model
+
+private struct PingMessage: Codable {
+    let type: String
 }
