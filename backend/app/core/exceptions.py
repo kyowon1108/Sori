@@ -36,3 +36,27 @@ class NotFoundError(APIError):
 class ForbiddenError(APIError):
     def __init__(self):
         super().__init__(status.HTTP_403_FORBIDDEN, "이 작업을 수행할 권한이 없습니다")
+
+
+# Pairing code errors
+class PairingCodeError(APIError):
+    def __init__(self, message: str, remaining_attempts: int = None):
+        details = {}
+        if remaining_attempts is not None:
+            details["remaining_attempts"] = remaining_attempts
+        super().__init__(status.HTTP_400_BAD_REQUEST, message, details)
+
+
+class PairingCodeExpiredError(APIError):
+    def __init__(self):
+        super().__init__(status.HTTP_400_BAD_REQUEST, "페어링 코드가 만료되었습니다")
+
+
+class PairingCodeUsedError(APIError):
+    def __init__(self):
+        super().__init__(status.HTTP_400_BAD_REQUEST, "이미 사용된 페어링 코드입니다")
+
+
+class RateLimitExceededError(APIError):
+    def __init__(self):
+        super().__init__(status.HTTP_429_TOO_MANY_REQUESTS, "너무 많은 요청입니다. 잠시 후 다시 시도해주세요")

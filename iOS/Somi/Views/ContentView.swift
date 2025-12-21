@@ -1,17 +1,17 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authViewModel = AuthViewModel()
+    @StateObject private var pairingViewModel = PairingViewModel()
 
     var body: some View {
         Group {
-            if authViewModel.isAuthenticated {
-                MainContainerView(authViewModel: authViewModel)
+            if pairingViewModel.isPaired {
+                ElderlyHomeView()
             } else {
-                AuthContainerView()
+                PairingView()
             }
         }
-        .environmentObject(authViewModel)
+        .environmentObject(pairingViewModel)
     }
 }
 

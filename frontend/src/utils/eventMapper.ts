@@ -257,7 +257,11 @@ export function callsToEvents(calls: Call[], elderlyMap?: Map<number, string>): 
 // ===========================================
 export function formatRelativeTime(dateString: string): string {
   try {
-    return formatDistanceToNow(parseISO(dateString), { addSuffix: true, locale: ko });
+    // Ensure UTC timestamps are parsed correctly by adding 'Z' suffix if missing
+    const utcDateString = dateString.endsWith('Z') || dateString.includes('+')
+      ? dateString
+      : dateString + 'Z';
+    return formatDistanceToNow(parseISO(utcDateString), { addSuffix: true, locale: ko });
   } catch {
     return dateString;
   }

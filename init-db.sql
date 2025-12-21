@@ -78,6 +78,18 @@ CREATE TABLE IF NOT EXISTS call_analysis (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- elderly_pairing_codes 테이블 (6자리 페어링 코드)
+CREATE TABLE IF NOT EXISTS elderly_pairing_codes (
+    id SERIAL PRIMARY KEY,
+    elderly_id INTEGER NOT NULL REFERENCES elderly(id) ON DELETE CASCADE,
+    code_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    attempt_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_elderly_caregiver_id ON elderly(caregiver_id);
@@ -89,6 +101,9 @@ CREATE INDEX IF NOT EXISTS idx_calls_scheduled_for ON calls(scheduled_for);
 CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
 CREATE INDEX IF NOT EXISTS idx_messages_call_id ON messages(call_id);
 CREATE INDEX IF NOT EXISTS idx_call_analysis_call_id ON call_analysis(call_id);
+CREATE INDEX IF NOT EXISTS idx_pairing_codes_elderly_id ON elderly_pairing_codes(elderly_id);
+CREATE INDEX IF NOT EXISTS idx_pairing_codes_code_hash ON elderly_pairing_codes(code_hash);
+CREATE INDEX IF NOT EXISTS idx_pairing_codes_expires_at ON elderly_pairing_codes(expires_at);
 
 -- 테스트 데이터 (개발 환경용)
 INSERT INTO users (email, password_hash, full_name, role) VALUES

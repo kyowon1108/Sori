@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Pairing Code
+    PAIRING_CODE_PEPPER: str = ""
+    PAIRING_CODE_TTL_MINUTES: int = 10
+    PAIRING_CODE_MAX_ATTEMPTS: int = 5
+    DEVICE_TOKEN_EXPIRE_DAYS: int = 90
+
     # Claude API
     CLAUDE_API_KEY: str
 

@@ -69,6 +69,29 @@ final class ChatViewModel: ObservableObject {
         )
     }
 
+    // MARK: - Elderly Device Connection
+
+    func startCallWithDeviceToken(callId: Int) {
+        guard let token = PairingService.shared.getDeviceToken() else {
+            errorMessage = "기기가 연결되지 않았습니다"
+            return
+        }
+
+        currentCallId = callId
+
+        webSocketService.connect(
+            callId: callId,
+            token: token,
+            onMessage: { [weak self] message in
+                self?.messages.append(message)
+            },
+            onError: { [weak self] error in
+                self?.errorMessage = (error as? APIError)?.description ?? "연결 오류"
+                self?.isConnected = false
+            }
+        )
+    }
+
     func sendMessage() {
         guard !inputText.trimmingCharacters(in: .whitespaces).isEmpty else {
             return

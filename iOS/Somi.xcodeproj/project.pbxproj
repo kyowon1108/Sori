@@ -42,6 +42,11 @@
 		A1000041238E5F9A00000001 /* ElderlyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000042238E5F9A00000001 /* ElderlyDetailView.swift */; };
 		A1000043238E5F9A00000001 /* ElderlyListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000044238E5F9A00000001 /* ElderlyListView.swift */; };
 		A1000045238E5F9A00000001 /* MainContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000046238E5F9A00000001 /* MainContainerView.swift */; };
+		A100004F238E5F9A00000001 /* Pairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000050238E5F9A00000001 /* Pairing.swift */; };
+		A1000051238E5F9A00000001 /* PairingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000052238E5F9A00000001 /* PairingService.swift */; };
+		A1000053238E5F9A00000001 /* PairingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000054238E5F9A00000001 /* PairingViewModel.swift */; };
+		A1000055238E5F9A00000001 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000056238E5F9A00000001 /* PairingView.swift */; };
+		A1000057238E5F9A00000001 /* ElderlyHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000058238E5F9A00000001 /* ElderlyHomeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -82,6 +87,11 @@
 		A1000044238E5F9A00000001 /* ElderlyListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElderlyListView.swift; sourceTree = "<group>"; };
 		A1000046238E5F9A00000001 /* MainContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainContainerView.swift; sourceTree = "<group>"; };
 		A1000048238E5F9A00000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1000050238E5F9A00000001 /* Pairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pairing.swift; sourceTree = "<group>"; };
+		A1000052238E5F9A00000001 /* PairingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingService.swift; sourceTree = "<group>"; };
+		A1000054238E5F9A00000001 /* PairingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingViewModel.swift; sourceTree = "<group>"; };
+		A1000056238E5F9A00000001 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
+		A1000058238E5F9A00000001 /* ElderlyHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElderlyHomeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -134,6 +144,7 @@
 				A100000C238E5F9A00000001 /* Call.swift */,
 				A100000E238E5F9A00000001 /* ChatMessage.swift */,
 				A1000010238E5F9A00000001 /* Elderly.swift */,
+				A1000050238E5F9A00000001 /* Pairing.swift */,
 				A1000012238E5F9A00000001 /* Responses.swift */,
 			);
 			path = Models;
@@ -145,6 +156,7 @@
 				A1000014238E5F9A00000001 /* APIService.swift */,
 				A1000016238E5F9A00000001 /* FirebaseService.swift */,
 				A1000018238E5F9A00000001 /* KeychainService.swift */,
+				A1000052238E5F9A00000001 /* PairingService.swift */,
 				A100001A238E5F9A00000001 /* WebSocketService.swift */,
 			);
 			path = Services;
@@ -177,6 +189,7 @@
 				A1000028238E5F9A00000001 /* CallViewModel.swift */,
 				A100002A238E5F9A00000001 /* ChatViewModel.swift */,
 				A100002C238E5F9A00000001 /* ElderlyViewModel.swift */,
+				A1000054238E5F9A00000001 /* PairingViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -187,7 +200,9 @@
 				A1000006238E5F9A00000001 /* ContentView.swift */,
 				A1000107238E5F9A00000001 /* Auth */,
 				A1000108238E5F9A00000001 /* Components */,
+				A100010F238E5F9A00000001 /* Elderly */,
 				A1000109238E5F9A00000001 /* Main */,
+				A1000110238E5F9A00000001 /* Pairing */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -224,6 +239,22 @@
 				A1000046238E5F9A00000001 /* MainContainerView.swift */,
 			);
 			path = Main;
+			sourceTree = "<group>";
+		};
+		A100010F238E5F9A00000001 /* Elderly */ = {
+			isa = PBXGroup;
+			children = (
+				A1000058238E5F9A00000001 /* ElderlyHomeView.swift */,
+			);
+			path = Elderly;
+			sourceTree = "<group>";
+		};
+		A1000110238E5F9A00000001 /* Pairing */ = {
+			isa = PBXGroup;
+			children = (
+				A1000056238E5F9A00000001 /* PairingView.swift */,
+			);
+			path = Pairing;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -303,10 +334,12 @@
 				A100000B238E5F9A00000001 /* Call.swift in Sources */,
 				A100000D238E5F9A00000001 /* ChatMessage.swift in Sources */,
 				A100000F238E5F9A00000001 /* Elderly.swift in Sources */,
+				A100004F238E5F9A00000001 /* Pairing.swift in Sources */,
 				A1000011238E5F9A00000001 /* Responses.swift in Sources */,
 				A1000013238E5F9A00000001 /* APIService.swift in Sources */,
 				A1000015238E5F9A00000001 /* FirebaseService.swift in Sources */,
 				A1000017238E5F9A00000001 /* KeychainService.swift in Sources */,
+				A1000051238E5F9A00000001 /* PairingService.swift in Sources */,
 				A1000019238E5F9A00000001 /* WebSocketService.swift in Sources */,
 				A100001B238E5F9A00000001 /* Constants.swift in Sources */,
 				A100001D238E5F9A00000001 /* Validators.swift in Sources */,
@@ -317,6 +350,7 @@
 				A1000027238E5F9A00000001 /* CallViewModel.swift in Sources */,
 				A1000029238E5F9A00000001 /* ChatViewModel.swift in Sources */,
 				A100002B238E5F9A00000001 /* ElderlyViewModel.swift in Sources */,
+				A1000053238E5F9A00000001 /* PairingViewModel.swift in Sources */,
 				A100002D238E5F9A00000001 /* AuthContainerView.swift in Sources */,
 				A100002F238E5F9A00000001 /* LoginView.swift in Sources */,
 				A1000031238E5F9A00000001 /* RegisterView.swift in Sources */,
@@ -330,6 +364,8 @@
 				A1000041238E5F9A00000001 /* ElderlyDetailView.swift in Sources */,
 				A1000043238E5F9A00000001 /* ElderlyListView.swift in Sources */,
 				A1000045238E5F9A00000001 /* MainContainerView.swift in Sources */,
+				A1000055238E5F9A00000001 /* PairingView.swift in Sources */,
+				A1000057238E5F9A00000001 /* ElderlyHomeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

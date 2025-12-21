@@ -25,6 +25,10 @@ struct KeychainKeys {
     static let accessToken = "accessToken"
     static let refreshToken = "refreshToken"
     static let user = "user"
+    // Elderly device pairing
+    static let deviceAccessToken = "deviceAccessToken"
+    static let elderlyId = "elderlyId"
+    static let deviceId = "deviceId"
 }
 
 struct NotificationNames {

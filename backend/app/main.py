@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.exceptions import APIError
 from app.database import engine, Base
-from app.routes import auth, elderly, calls, websocket
+from app.routes import auth, elderly, calls, websocket, pairing, pairing_public
 
 # 로깅 설정
 logger = setup_logging()
@@ -89,6 +89,8 @@ app.add_middleware(
 # 라우터 포함
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(elderly.router, prefix="/api/elderly", tags=["elderly"])
+app.include_router(pairing.router, prefix="/api/elderly", tags=["pairing"])
+app.include_router(pairing_public.router, prefix="/api/pairing", tags=["pairing"])
 app.include_router(calls.router, prefix="/api/calls", tags=["calls"])
 app.include_router(websocket.router, tags=["websocket"])
 

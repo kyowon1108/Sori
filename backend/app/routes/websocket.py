@@ -144,16 +144,54 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
+    scope = payload.get("scope")
+    token_type = payload.get("type")
+
     db = SessionLocal()
     heartbeat_task: Optional[asyncio.Task] = None
     state: Optional[ConnectionState] = None
 
     try:
-        # Verify call exists and update status
+        # Verify call exists
         call = db.query(Call).filter(Call.id == call_id).first()
         if not call:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
+
+        # Authorization check based on scope
+        if scope == "elderly" and token_type == "device_access":
+            # Elderly device token: verify call belongs to this elderly
+            elderly_id = int(payload.get("sub"))
+            if call.elderly_id != elderly_id:
+                logger.warning(f"Elderly {elderly_id} tried to access call {call_id} for elderly {call.elderly_id}")
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+
+            # Update device last_used_at
+            device_id = payload.get("device_id")
+            if device_id:
+                from app.models.elderly_device import ElderlyDevice
+                device = db.query(ElderlyDevice).filter(ElderlyDevice.id == device_id).first()
+                if device:
+                    device.last_used_at = datetime.utcnow()
+                    db.commit()
+
+        elif scope == "caregiver":
+            # Caregiver access token: verify call's elderly belongs to this caregiver
+            user_id = int(payload.get("sub"))
+            from app.models.elderly import Elderly
+            elderly = db.query(Elderly).filter(
+                Elderly.id == call.elderly_id,
+                Elderly.caregiver_id == user_id
+            ).first()
+            if not elderly:
+                logger.warning(f"User {user_id} tried to access call {call_id} without permission")
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+        else:
+            # Unknown scope or legacy token without scope - allow for backward compatibility
+            # but log a warning
+            logger.warning(f"Token without scope accessing call {call_id}")
 
         # Update call status from pending/scheduled to in_progress
         if call.status in ("pending", "scheduled"):

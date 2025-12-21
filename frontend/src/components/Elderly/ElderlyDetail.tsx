@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useElderly } from '@/hooks/useElderly';
 import { useCalls } from '@/hooks/useCalls';
 import { useStore } from '@/store/useStore';
+import { elderlyService } from '@/services/elderly';
 import { RiskBadge, StatusBadge } from '@/components/Common/Badge';
 import { ListItemSkeleton } from '@/components/Common/Skeleton';
 import EmptyState from '@/components/Common/EmptyState';
@@ -20,7 +21,22 @@ interface ElderlyDetailProps {
   elderlyId: number;
 }
 
-type TabType = 'timeline' | 'schedule' | 'calls' | 'insights';
+type TabType = 'timeline' | 'schedule' | 'calls' | 'insights' | 'pairing';
+
+interface PairingDevice {
+  id: number;
+  platform: string;
+  device_name: string | null;
+  last_used_at: string | null;
+}
+
+interface PairingStatus {
+  elderly_id: number;
+  has_active_code: boolean;
+  code_expires_at: string | null;
+  paired_devices: PairingDevice[];
+  device_count: number;
+}
 
 export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
   const router = useRouter();
@@ -29,12 +45,96 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
   const [activeTab, setActiveTab] = useState<TabType>('timeline');
   const [dataLoaded, setDataLoaded] = useState(false);
 
+  // Pairing state
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingExpiry, setPairingExpiry] = useState<Date | null>(null);
+  const [pairingStatus, setPairingStatus] = useState<PairingStatus | null>(null);
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [countdown, setCountdown] = useState<string>('');
+
   useEffect(() => {
     Promise.all([
       fetchById(elderlyId),
       fetchCalls(elderlyId),
+      fetchPairingStatus(),
     ]).finally(() => setDataLoaded(true));
   }, [elderlyId, fetchById, fetchCalls]);
+
+  // Refresh pairing status when pairing tab is active
+  useEffect(() => {
+    if (activeTab === 'pairing') {
+      fetchPairingStatus();
+    }
+  }, [activeTab, elderlyId]);
+
+  // Countdown timer for pairing code expiry
+  useEffect(() => {
+    if (!pairingExpiry) {
+      setCountdown('');
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = new Date();
+      const diff = pairingExpiry.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setCountdown('만료됨');
+        setPairingCode(null);
+        setPairingExpiry(null);
+        return;
+      }
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [pairingExpiry]);
+
+  const fetchPairingStatus = async () => {
+    try {
+      const status = await elderlyService.getPairingStatus(elderlyId);
+      setPairingStatus(status);
+    } catch (error) {
+      console.error('Failed to fetch pairing status:', error);
+    }
+  };
+
+  const handleGeneratePairingCode = async () => {
+    setPairingLoading(true);
+    try {
+      const result = await elderlyService.generatePairingCode(elderlyId);
+      setPairingCode(result.code);
+      // Ensure UTC time is parsed correctly by adding 'Z' suffix if missing
+      const expiresAt = result.expires_at.endsWith('Z')
+        ? result.expires_at
+        : result.expires_at + 'Z';
+      setPairingExpiry(new Date(expiresAt));
+      await fetchPairingStatus();
+    } catch (error) {
+      console.error('Failed to generate pairing code:', error);
+    } finally {
+      setPairingLoading(false);
+    }
+  };
+
+  const handleDisconnectDevice = async (deviceId: number) => {
+    if (!window.confirm('기기 연결을 해제하시겠습니까?')) return;
+
+    try {
+      await elderlyService.disconnectDevice(elderlyId, deviceId);
+      await fetchPairingStatus();
+    } catch (error) {
+      console.error('Failed to disconnect device:', error);
+    }
+  };
+
+  // Get the connected device (single device per elderly)
+  const connectedDevice = pairingStatus?.paired_devices?.[0] || null;
 
   // 이 어르신의 통화만 필터
   const elderlyCalls = useMemo(
@@ -126,6 +226,7 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
     { id: 'schedule', label: '스케줄' },
     { id: 'calls', label: '상담 내역', count: elderlyCalls.length },
     { id: 'insights', label: '인사이트' },
+    { id: 'pairing', label: '기기 연결', count: connectedDevice ? 1 : undefined },
   ];
 
   return (
@@ -158,10 +259,10 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
 
               {/* 디바이스 상태 */}
               <div className="flex items-center gap-2 mt-3">
-                {currentElderly.device ? (
+                {connectedDevice ? (
                   <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-50 text-green-700 rounded-full">
                     <span className="w-2 h-2 bg-green-500 rounded-full" />
-                    디바이스 연결됨 ({currentElderly.device.device_type})
+                    디바이스 연결됨
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-full">
@@ -175,16 +276,6 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
 
           {/* 액션 버튼 */}
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={handleStartCall}
-              disabled={callsLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
-              {callsLoading ? '연결 중...' : '통화 시작'}
-            </button>
             <Link
               href={`/elderly/${elderlyId}/edit`}
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
@@ -475,6 +566,103 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
                     <h4 className="text-sm font-medium text-gray-500 mb-2">최근 분석 요약</h4>
                     <p className="text-gray-900">{insights.recentAnalysis.summary}</p>
                   </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 기기 연결 탭 */}
+        {activeTab === 'pairing' && (
+          <div className="p-6 space-y-6">
+            {connectedDevice ? (
+              /* 기기가 연결된 경우 */
+              <>
+                <div className="bg-green-50 rounded-lg border border-green-200 p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-green-900">
+                          {connectedDevice.device_name || `${connectedDevice.platform.toUpperCase()} 기기`}
+                        </h3>
+                        <p className="text-sm text-green-700">
+                          {connectedDevice.last_used_at
+                            ? `마지막 사용: ${formatRelativeTime(connectedDevice.last_used_at)}`
+                            : '아직 사용 기록 없음'}
+                        </p>
+                        <span className="inline-flex items-center gap-1 mt-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                          <span className="w-2 h-2 bg-green-500 rounded-full" />
+                          연결됨
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">기기 변경이 필요하신가요?</h4>
+                  <p className="text-sm text-gray-500 mb-4">
+                    새 기기로 변경하려면 먼저 현재 기기 연결을 해제한 후, 새 기기에서 페어링 코드를 입력하세요.
+                  </p>
+                  <button
+                    onClick={() => handleDisconnectDevice(connectedDevice.id)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                    연결 해제
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* 기기가 연결되지 않은 경우 */
+              <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">iOS 앱 연결</h3>
+                <p className="text-sm text-blue-700 mb-4">
+                  어르신의 iOS 기기에서 SORI 앱을 열고 아래 코드를 입력하세요.
+                </p>
+
+                {pairingCode ? (
+                  <div className="text-center py-6">
+                    <div className="inline-flex gap-2 mb-4">
+                      {pairingCode.split('').map((digit, i) => (
+                        <span
+                          key={i}
+                          className="w-12 h-14 flex items-center justify-center text-2xl font-bold bg-white text-blue-900 rounded-lg border-2 border-blue-300"
+                        >
+                          {digit}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-sm text-blue-600">
+                      {countdown === '만료됨' ? (
+                        <span className="text-red-600">코드가 만료되었습니다</span>
+                      ) : (
+                        <>남은 시간: <span className="font-mono font-bold">{countdown}</span></>
+                      )}
+                    </p>
+                    <button
+                      onClick={handleGeneratePairingCode}
+                      disabled={pairingLoading}
+                      className="mt-4 py-2 px-4 text-blue-600 font-medium rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                      새 코드 생성
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleGeneratePairingCode}
+                    disabled={pairingLoading}
+                    className="w-full py-3 px-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {pairingLoading ? '생성 중...' : '페어링 코드 생성'}
+                  </button>
                 )}
               </div>
             )}

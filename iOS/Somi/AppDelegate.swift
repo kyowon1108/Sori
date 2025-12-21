@@ -44,8 +44,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         // Firebase에 APNs 토큰 전달
-        // Messaging.messaging().apnsToken = deviceToken
-        print("APNs token registered: \(deviceToken.map { String(format: "%02.2hhx", $0) }.joined())")
+        FirebaseService.shared.setAPNSToken(deviceToken)
     }
 
     func application(
@@ -78,16 +77,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
 
     private func handleNotification(_ userInfo: [AnyHashable: Any]) {
-        // 알림 데이터 처리
-        if let callId = userInfo["call_id"] as? Int {
-            // 통화 화면으로 이동
-            print("Navigate to call: \(callId)")
-        }
-
-        if let elderlyId = userInfo["elderly_id"] as? Int {
-            // 어르신 상세 화면으로 이동
-            print("Navigate to elderly: \(elderlyId)")
-        }
+        // 알림 데이터 처리 - FirebaseService로 위임
+        FirebaseService.shared.handleNotification(userInfo: userInfo)
     }
 }
 
