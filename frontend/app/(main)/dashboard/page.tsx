@@ -1,21 +1,66 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useElderly } from '@/hooks/useElderly';
 import { useCalls } from '@/hooks/useCalls';
+import { useStore } from '@/store/useStore';
 import Link from 'next/link';
 
 export default function DashboardPage() {
   const { elderlyList, fetchList: fetchElderlyList, elderlyLoading } = useElderly();
   const { callsList, fetchList: fetchCallsList, callsLoading } = useCalls();
+  const error = useStore((state) => state.error);
+  const setError = useStore((state) => state.setError);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
-    fetchElderlyList();
-    fetchCallsList();
+    const loadData = async () => {
+      try {
+        await Promise.all([fetchElderlyList(), fetchCallsList()]);
+      } catch {
+        // Errors are handled in the hooks
+      } finally {
+        setDataLoaded(true);
+      }
+    };
+    loadData();
   }, [fetchElderlyList, fetchCallsList]);
 
   const recentCalls = callsList.slice(0, 5);
   const highRiskElderly = elderlyList.filter((e) => e.risk_level === 'high');
+
+  // Show loading state
+  if (!dataLoaded && (elderlyLoading || callsLoading)) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <span className="ml-4 text-gray-600">데이터를 불러오는 중...</span>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md text-center">
+          <h2 className="text-xl font-bold text-red-600 mb-2">오류 발생</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              setDataLoaded(false);
+              fetchElderlyList();
+              fetchCallsList();
+            }}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+          >
+            다시 시도
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

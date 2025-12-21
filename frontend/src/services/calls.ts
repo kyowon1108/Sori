@@ -7,8 +7,15 @@ export const callsService = {
     if (elderly_id) params.elderly_id = elderly_id;
 
     const response = await apiClient.getClient().get('/api/calls', { params });
-    // Backend returns { data: { items: [], total: number } }
-    return response.data.data.items || response.data.data;
+    // Backend returns { data: { items: [], total: number } } or { data: [] }
+    const data = response.data?.data;
+    if (Array.isArray(data)) {
+      return data;
+    }
+    if (data?.items && Array.isArray(data.items)) {
+      return data.items;
+    }
+    return [];
   },
 
   async getById(id: number): Promise<Call> {

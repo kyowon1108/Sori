@@ -11,21 +11,35 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
-  const { isAuthenticated, authLoading } = useStore();
+  // Use selectors to avoid unnecessary re-renders
+  const isAuthenticated = useStore((state) => state.isAuthenticated);
+  const authLoading = useStore((state) => state.authLoading);
   const [mounted, setMounted] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
+  // Wait for client-side hydration
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Wait for Zustand persist to hydrate
   useEffect(() => {
-    if (mounted && !authLoading && !isAuthenticated) {
+    // Small delay to ensure persist middleware has hydrated
+    const timer = setTimeout(() => {
+      setHydrated(true);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Redirect if not authenticated (after hydration)
+  useEffect(() => {
+    if (mounted && hydrated && !authLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [mounted, isAuthenticated, authLoading, router]);
+  }, [mounted, hydrated, isAuthenticated, authLoading, router]);
 
   // Wait for hydration to complete
-  if (!mounted || authLoading) {
+  if (!mounted || !hydrated || authLoading) {
     return <Loading />;
   }
 
