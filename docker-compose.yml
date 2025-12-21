@@ -46,17 +46,28 @@ services:
       dockerfile: Dockerfile
     container_name: sori-backend
     environment:
+      # Database & Redis
       DATABASE_URL: postgresql://${DB_USER:-sori_user}:${DB_PASSWORD:-sori_password}@postgres:5432/${DB_NAME:-sori_db}
       REDIS_URL: redis://redis:6379/0
+      # AI APIs
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # JWT
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_HOURS: 24
       REFRESH_TOKEN_EXPIRE_DAYS: 7
+      # Pairing Code
+      PAIRING_CODE_PEPPER: ${PAIRING_CODE_PEPPER:-change-this-pepper-in-production}
+      PAIRING_CODE_TTL_MINUTES: 10
+      PAIRING_CODE_MAX_ATTEMPTS: 5
+      DEVICE_TOKEN_EXPIRE_DAYS: 90
+      # CORS & Firebase
       FRONTEND_URL: http://localhost:3000
       IOS_BUNDLE_ID: com.sori.app
       FIREBASE_CREDENTIALS_PATH: /app/firebase-credentials.json
+      # Server
+      LOG_LEVEL: INFO
       ENVIRONMENT: development
     ports:
       - "8000:8000"
@@ -67,6 +78,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/app:/app/app
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - sori-network
@@ -102,10 +114,16 @@ services:
       dockerfile: Dockerfile
     container_name: sori-celery-worker
     environment:
+      # Database & Redis
       DATABASE_URL: postgresql://${DB_USER:-sori_user}:${DB_PASSWORD:-sori_password}@postgres:5432/${DB_NAME:-sori_db}
       REDIS_URL: redis://redis:6379/0
+      # AI APIs
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # JWT & Pairing
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      PAIRING_CODE_PEPPER: ${PAIRING_CODE_PEPPER:-change-this-pepper-in-production}
+      # Firebase
       FIREBASE_CREDENTIALS_PATH: /app/firebase-credentials.json
       ENVIRONMENT: development
     depends_on:
@@ -127,10 +145,16 @@ services:
       dockerfile: Dockerfile
     container_name: sori-celery-beat
     environment:
+      # Database & Redis
       DATABASE_URL: postgresql://${DB_USER:-sori_user}:${DB_PASSWORD:-sori_password}@postgres:5432/${DB_NAME:-sori_db}
       REDIS_URL: redis://redis:6379/0
+      # AI APIs
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # JWT & Pairing
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      PAIRING_CODE_PEPPER: ${PAIRING_CODE_PEPPER:-change-this-pepper-in-production}
+      # Firebase
       FIREBASE_CREDENTIALS_PATH: /app/firebase-credentials.json
       ENVIRONMENT: development
     depends_on:
@@ -140,6 +164,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/app:/app/app
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
     command: celery -A app.celery_app beat --loglevel=info
     networks:
       - sori-network
@@ -151,10 +176,15 @@ services:
       dockerfile: Dockerfile
     container_name: sori-flower
     environment:
+      # Database & Redis
       DATABASE_URL: postgresql://${DB_USER:-sori_user}:${DB_PASSWORD:-sori_password}@postgres:5432/${DB_NAME:-sori_db}
       REDIS_URL: redis://redis:6379/0
+      # AI APIs
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # JWT
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      ENVIRONMENT: development
     ports:
       - "5555:5555"
     depends_on:
