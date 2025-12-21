@@ -13,12 +13,12 @@ interface ElderlyCardProps {
 }
 
 export default function ElderlyCard({ elderly }: ElderlyCardProps) {
-  // 다음 상담 시간 포맷
+  // 다음 통화 시간 포맷 (prefix 없이 시간만 반환)
   const getNextCallText = () => {
     if (!elderly.next_scheduled_call) {
       if (elderly.call_schedule.enabled && elderly.call_schedule.times.length > 0) {
         const nextTime = elderly.call_schedule.times[0];
-        return `다음 상담: 오늘 ${formatScheduleTime(nextTime)}`;
+        return `오늘 ${formatScheduleTime(nextTime)}`;
       }
       return null;
     }
@@ -91,7 +91,7 @@ export default function ElderlyCard({ elderly }: ElderlyCardProps) {
         )}
       </div>
 
-      {/* 다음 상담 / 스케줄 */}
+      {/* 다음 자동 통화 / 스케줄 */}
       <div className="border-t border-gray-100 pt-3">
         {elderly.call_schedule.enabled ? (
           <div className="flex items-center gap-2 text-sm">
@@ -100,7 +100,7 @@ export default function ElderlyCard({ elderly }: ElderlyCardProps) {
             </svg>
             <span className="text-gray-600">
               {nextCallText ? (
-                <>다음 상담: <span className="font-medium text-gray-900">{nextCallText}</span></>
+                <>다음 자동 통화: <span className="font-medium text-gray-900">{nextCallText}</span></>
               ) : (
                 <>매일 {elderly.call_schedule.times.map(formatScheduleTime).join(', ')}</>
               )}
@@ -111,7 +111,7 @@ export default function ElderlyCard({ elderly }: ElderlyCardProps) {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
             </svg>
-            <span>자동 상담 비활성</span>
+            <span>자동 통화 비활성</span>
           </div>
         )}
       </div>
