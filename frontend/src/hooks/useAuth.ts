@@ -45,6 +45,8 @@ export const useAuth = () => {
         const response = await authService.login(email, password);
         setTokens(response.access_token, response.refresh_token);
         setUser(response.user);
+        // Set cookie for middleware authentication
+        document.cookie = `accessToken=${response.access_token}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`;
         router.push('/dashboard');
       } catch (error: unknown) {
         const err = error as { response?: { data?: { message?: string } } };
@@ -58,6 +60,8 @@ export const useAuth = () => {
 
   const logout = useCallback(() => {
     storeLogout();
+    // Clear cookie
+    document.cookie = 'accessToken=; path=/; max-age=0';
     router.push('/login');
   }, [storeLogout, router]);
 
