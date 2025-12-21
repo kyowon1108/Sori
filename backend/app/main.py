@@ -71,6 +71,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",      # Frontend dev
+        "http://localhost:3002",      # Frontend dev (alternate port)
         "http://localhost:8080",      # iOS dev
         settings.FRONTEND_URL,
     ],
