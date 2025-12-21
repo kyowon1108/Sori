@@ -25,16 +25,32 @@ const menuItems = [
       </svg>
     ),
   },
+  {
+    name: '상담 내역',
+    href: '/calls',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+      </svg>
+    ),
+  },
+  {
+    name: '알림센터',
+    href: '/alerts',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      </svg>
+    ),
+  },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  // Use selectors to avoid unnecessary re-renders
   const sidebarOpen = useStore((state) => state.sidebarOpen);
   const setSidebarOpen = useStore((state) => state.setSidebarOpen);
   const [isDesktop, setIsDesktop] = useState(true);
 
-  // Check if we're on desktop (lg breakpoint = 1024px)
   useEffect(() => {
     const checkDesktop = () => {
       setIsDesktop(window.innerWidth >= 1024);
@@ -44,12 +60,10 @@ export default function Sidebar() {
     return () => window.removeEventListener('resize', checkDesktop);
   }, []);
 
-  // Only show overlay on mobile when sidebar is open
   const showOverlay = sidebarOpen && !isDesktop;
 
   return (
     <>
-      {/* Overlay for mobile - only when sidebar is actually expanded */}
       {showOverlay && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-20"
@@ -57,7 +71,6 @@ export default function Sidebar() {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={clsx(
           'fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0',
@@ -66,27 +79,39 @@ export default function Sidebar() {
       >
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-center h-16 border-b border-gray-200">
-            <span className="text-2xl font-bold text-blue-600">SORI</span>
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <span className="text-2xl font-bold text-blue-600">SOMI</span>
+              <span className="text-sm text-gray-500">Care Connect</span>
+            </Link>
           </div>
 
-          <nav className="flex-1 p-4 space-y-2">
-            {menuItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={clsx(
-                  'flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors',
-                  pathname === item.href || pathname.startsWith(item.href + '/')
-                    ? 'bg-blue-50 text-blue-600'
-                    : 'text-gray-600 hover:bg-gray-100'
-                )}
-                onClick={() => setSidebarOpen(false)}
-              >
-                {item.icon}
-                <span>{item.name}</span>
-              </Link>
-            ))}
+          <nav className="flex-1 p-4 space-y-1">
+            {menuItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={clsx(
+                    'flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors',
+                    isActive
+                      ? 'bg-blue-50 text-blue-600 font-medium'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  )}
+                  onClick={() => !isDesktop && setSidebarOpen(false)}
+                >
+                  {item.icon}
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
           </nav>
+
+          <div className="p-4 border-t border-gray-200">
+            <div className="text-xs text-gray-400 text-center">
+              Somi Care Connect v1.0
+            </div>
+          </div>
         </div>
       </aside>
     </>
