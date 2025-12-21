@@ -5,7 +5,9 @@ import { useStore } from '@/store/useStore';
 
 export default function Header() {
   const { logout, user } = useAuth();
-  const { sidebarOpen, setSidebarOpen } = useStore();
+  // Use selectors to avoid unnecessary re-renders
+  const sidebarOpen = useStore((state) => state.sidebarOpen);
+  const setSidebarOpen = useStore((state) => state.setSidebarOpen);
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">

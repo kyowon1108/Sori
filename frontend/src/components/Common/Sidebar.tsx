@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import clsx from 'clsx';
+import { useEffect, useState } from 'react';
 
 const menuItems = [
   {
@@ -28,14 +29,30 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { sidebarOpen, setSidebarOpen } = useStore();
+  // Use selectors to avoid unnecessary re-renders
+  const sidebarOpen = useStore((state) => state.sidebarOpen);
+  const setSidebarOpen = useStore((state) => state.setSidebarOpen);
+  const [isDesktop, setIsDesktop] = useState(true);
+
+  // Check if we're on desktop (lg breakpoint = 1024px)
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    checkDesktop();
+    window.addEventListener('resize', checkDesktop);
+    return () => window.removeEventListener('resize', checkDesktop);
+  }, []);
+
+  // Only show overlay on mobile when sidebar is open
+  const showOverlay = sidebarOpen && !isDesktop;
 
   return (
     <>
-      {/* Overlay for mobile */}
-      {sidebarOpen && (
+      {/* Overlay for mobile - only when sidebar is actually expanded */}
+      {showOverlay && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+          className="fixed inset-0 bg-black bg-opacity-50 z-20"
           onClick={() => setSidebarOpen(false)}
         />
       )}
