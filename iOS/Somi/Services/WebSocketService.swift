@@ -48,35 +48,42 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
         onError: @escaping (Error) -> Void
     ) {
         webSocket?.receive { [weak self] result in
+            guard let self = self else { return }
+
             switch result {
             case .success(let message):
                 switch message {
                 case .string(let text):
                     if let data = text.data(using: .utf8),
                        let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data),
-                       let chatMessage = self?.convertWSMessageToChatMessage(wsMessage) {
+                       let chatMessage = self.convertWSMessageToChatMessage(wsMessage) {
                         DispatchQueue.main.async {
                             onMessage(chatMessage)
-                            self?.messagePublisher.send(chatMessage)
+                            self.messagePublisher.send(chatMessage)
                         }
                     }
+                    // IMPORTANT: 다음 메시지 계속 수신
+                    self.receiveMessages(onMessage: onMessage, onError: onError)
+
                 case .data(let data):
                     if let wsMessage = try? JSONDecoder().decode(WSMessage.self, from: data),
-                       let chatMessage = self?.convertWSMessageToChatMessage(wsMessage) {
+                       let chatMessage = self.convertWSMessageToChatMessage(wsMessage) {
                         DispatchQueue.main.async {
                             onMessage(chatMessage)
-                            self?.messagePublisher.send(chatMessage)
+                            self.messagePublisher.send(chatMessage)
                         }
                     }
+                    // IMPORTANT: 다음 메시지 계속 수신
+                    self.receiveMessages(onMessage: onMessage, onError: onError)
+
                 @unknown default:
-                    break
+                    // IMPORTANT: 계속 수신
+                    self.receiveMessages(onMessage: onMessage, onError: onError)
                 }
-                // 다음 메시지 대기
-                self?.receiveMessages(onMessage: onMessage, onError: onError)
 
             case .failure(let error):
                 DispatchQueue.main.async {
-                    self?.connectionStatusPublisher.send(false)
+                    self.connectionStatusPublisher.send(false)
                     onError(error)
                 }
             }

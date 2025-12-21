@@ -30,14 +30,29 @@ CREATE TABLE IF NOT EXISTS elderly (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- elderly_devices 테이블 (FCM 푸시 토큰)
+CREATE TABLE IF NOT EXISTS elderly_devices (
+    id SERIAL PRIMARY KEY,
+    elderly_id INTEGER NOT NULL REFERENCES elderly(id) ON DELETE CASCADE,
+    fcm_token VARCHAR(512) NOT NULL UNIQUE,
+    platform VARCHAR(20) DEFAULT 'ios',
+    device_name VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    last_used_at TIMESTAMP
+);
+
 -- calls 테이블
 CREATE TABLE IF NOT EXISTS calls (
     id SERIAL PRIMARY KEY,
     elderly_id INTEGER NOT NULL REFERENCES elderly(id) ON DELETE CASCADE,
     call_type VARCHAR(50) DEFAULT 'voice',
+    trigger_type VARCHAR(50) DEFAULT 'manual',
     started_at TIMESTAMP NOT NULL,
     ended_at TIMESTAMP,
     duration INTEGER,
+    scheduled_for TIMESTAMP,
     status VARCHAR(50) DEFAULT 'in_progress',
     is_successful BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -56,18 +71,22 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE TABLE IF NOT EXISTS call_analysis (
     id SERIAL PRIMARY KEY,
     call_id INTEGER NOT NULL UNIQUE REFERENCES calls(id) ON DELETE CASCADE,
-    risk_level VARCHAR(20) DEFAULT 'low',
-    sentiment_score FLOAT DEFAULT 0.0,
     summary TEXT,
-    recommendations JSONB,
-    analyzed_at TIMESTAMP DEFAULT NOW()
+    risk_score INTEGER DEFAULT 0,
+    concerns TEXT,
+    recommendations TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_elderly_caregiver_id ON elderly(caregiver_id);
+CREATE INDEX IF NOT EXISTS idx_elderly_devices_elderly_id ON elderly_devices(elderly_id);
+CREATE INDEX IF NOT EXISTS idx_elderly_devices_fcm_token ON elderly_devices(fcm_token);
 CREATE INDEX IF NOT EXISTS idx_calls_elderly_id ON calls(elderly_id);
 CREATE INDEX IF NOT EXISTS idx_calls_created_at ON calls(created_at);
+CREATE INDEX IF NOT EXISTS idx_calls_scheduled_for ON calls(scheduled_for);
+CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
 CREATE INDEX IF NOT EXISTS idx_messages_call_id ON messages(call_id);
 CREATE INDEX IF NOT EXISTS idx_call_analysis_call_id ON call_analysis(call_id);
 

@@ -1,4 +1,23 @@
 services:
+  # Redis (Celery broker & result backend)
+  redis:
+    image: redis:7-alpine
+    container_name: sori-redis
+    # IMPORTANT: Celery broker로 쓰는 Redis는 eviction(allkeys-lru 등)을 쓰면 큐 키가 eviction되어 task 유실 가능.
+    # MVP에서도 noeviction 권장.
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sori-network
+
   # PostgreSQL 데이터베이스
   postgres:
     image: postgres:15-alpine
@@ -28,6 +47,7 @@ services:
     container_name: sori-backend
     environment:
       DATABASE_URL: postgresql://${DB_USER:-sori_user}:${DB_PASSWORD:-sori_password}@postgres:5432/${DB_NAME:-sori_db}
+      REDIS_URL: redis://redis:6379/0
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
       ALGORITHM: HS256
@@ -35,11 +55,14 @@ services:
       REFRESH_TOKEN_EXPIRE_DAYS: 7
       FRONTEND_URL: http://localhost:3000
       IOS_BUNDLE_ID: com.sori.app
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-credentials.json
       ENVIRONMENT: development
     ports:
       - "8000:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./backend/app:/app/app
@@ -71,6 +94,75 @@ services:
     networks:
       - sori-network
 
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sori-celery-worker
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-sori_user}:${DB_PASSWORD:-sori_password}@postgres:5432/${DB_NAME:-sori_db}
+      REDIS_URL: redis://redis:6379/0
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-credentials.json
+      ENVIRONMENT: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+    command: celery -A app.celery_app worker --loglevel=info
+    networks:
+      - sori-network
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sori-celery-beat
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-sori_user}:${DB_PASSWORD:-sori_password}@postgres:5432/${DB_NAME:-sori_db}
+      REDIS_URL: redis://redis:6379/0
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-credentials.json
+      ENVIRONMENT: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+    command: celery -A app.celery_app beat --loglevel=info
+    networks:
+      - sori-network
+
+  # Flower (Celery Monitoring)
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sori-flower
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-sori_user}:${DB_PASSWORD:-sori_password}@postgres:5432/${DB_NAME:-sori_db}
+      REDIS_URL: redis://redis:6379/0
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery-worker
+    command: celery -A app.celery_app flower --port=5555
+    networks:
+      - sori-network
+
   # Nginx 리버스 프록시
   nginx:
     image: nginx:alpine
@@ -89,6 +181,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

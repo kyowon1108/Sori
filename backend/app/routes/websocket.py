@@ -1,5 +1,15 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
+"""
+WebSocket endpoint for real-time chat with heartbeat and stability features.
+"""
+import asyncio
 import json
+import logging
+import uuid
+from datetime import datetime
+from collections import OrderedDict
+from typing import Optional, Set
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
 
 from app.database import SessionLocal
 from app.core.security import verify_token
@@ -8,50 +18,154 @@ from app.models.message import Message
 from app.services.claude_ai import ClaudeService
 from app.services.calls import CallService
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 claude_service = ClaudeService()
 
+# Configuration
+HEARTBEAT_INTERVAL = 30  # seconds
+HEARTBEAT_TIMEOUT = 10   # seconds to wait for pong
+MESSAGE_DEDUP_SIZE = 1000  # max messages to track for deduplication
+
+
+class LRUSet:
+    """LRU-based set for message deduplication with bounded memory."""
+
+    def __init__(self, maxsize: int = MESSAGE_DEDUP_SIZE):
+        self._maxsize = maxsize
+        self._data: OrderedDict = OrderedDict()
+
+    def add(self, item: str) -> bool:
+        """Add item, return True if new, False if duplicate."""
+        if item in self._data:
+            # Move to end (most recently used)
+            self._data.move_to_end(item)
+            return False
+
+        self._data[item] = True
+        while len(self._data) > self._maxsize:
+            self._data.popitem(last=False)
+        return True
+
+    def __contains__(self, item: str) -> bool:
+        return item in self._data
+
+
+class ConnectionState:
+    """State for a single WebSocket connection."""
+
+    def __init__(self, websocket: WebSocket, call_id: int):
+        self.websocket = websocket
+        self.call_id = call_id
+        self.last_pong: datetime = datetime.utcnow()
+        self.seen_messages: LRUSet = LRUSet()
+        self.lock: asyncio.Lock = asyncio.Lock()
+        self.closed: bool = False
+
 
 class ConnectionManager:
-    def __init__(self):
-        self.active_connections: dict = {}
+    """Manages WebSocket connections with heartbeat support."""
 
-    async def connect(self, websocket: WebSocket, call_id: int):
+    def __init__(self):
+        self.connections: dict[int, ConnectionState] = {}
+
+    async def connect(self, websocket: WebSocket, call_id: int) -> ConnectionState:
         await websocket.accept()
-        self.active_connections[call_id] = websocket
+        state = ConnectionState(websocket, call_id)
+        self.connections[call_id] = state
+        logger.info(f"WebSocket connected: call_id={call_id}")
+        return state
 
     def disconnect(self, call_id: int):
-        if call_id in self.active_connections:
-            del self.active_connections[call_id]
+        if call_id in self.connections:
+            self.connections[call_id].closed = True
+            del self.connections[call_id]
+            logger.info(f"WebSocket disconnected: call_id={call_id}")
 
-    async def send_message(self, call_id: int, message: dict):
-        if call_id in self.active_connections:
-            await self.active_connections[call_id].send_json(message)
+    def get(self, call_id: int) -> Optional[ConnectionState]:
+        return self.connections.get(call_id)
+
+    async def send_message(self, state: ConnectionState, message: dict):
+        """Send message with lock to prevent race conditions."""
+        if state.closed:
+            return
+
+        async with state.lock:
+            try:
+                await state.websocket.send_json(message)
+            except Exception as e:
+                logger.warning(f"Failed to send message: {e}")
+                state.closed = True
 
 
 manager = ConnectionManager()
 
 
+async def heartbeat_loop(state: ConnectionState):
+    """Send periodic ping messages and check for timeout."""
+    while not state.closed:
+        try:
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+
+            if state.closed:
+                break
+
+            # Check if last pong is too old
+            elapsed = (datetime.utcnow() - state.last_pong).total_seconds()
+            if elapsed > HEARTBEAT_INTERVAL + HEARTBEAT_TIMEOUT:
+                logger.warning(f"Heartbeat timeout for call_id={state.call_id}")
+                state.closed = True
+                try:
+                    await state.websocket.close(code=status.WS_1002_PROTOCOL_ERROR)
+                except Exception:
+                    pass
+                break
+
+            # Send ping
+            await manager.send_message(state, {
+                "type": "ping",
+                "timestamp": datetime.utcnow().isoformat(),
+            })
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Heartbeat error: {e}")
+            break
+
+
 @router.websocket("/ws/{call_id}")
 async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Query(...)):
-    """WebSocket 실시간 채팅"""
-    # 토큰 검증
+    """WebSocket endpoint for real-time chat with Claude AI."""
+
+    # Verify token
     payload = verify_token(token)
     if not payload:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
     db = SessionLocal()
+    heartbeat_task: Optional[asyncio.Task] = None
+    state: Optional[ConnectionState] = None
+
     try:
-        # Call 존재 확인
+        # Verify call exists and update status
         call = db.query(Call).filter(Call.id == call_id).first()
         if not call:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        await manager.connect(websocket, call_id)
+        # Update call status from pending/scheduled to in_progress
+        if call.status in ("pending", "scheduled"):
+            call.status = "in_progress"
+            call.started_at = datetime.utcnow()
+            db.commit()
 
-        # 기존 메시지 로드
+        # Connect and start heartbeat
+        state = await manager.connect(websocket, call_id)
+        heartbeat_task = asyncio.create_task(heartbeat_loop(state))
+
+        # Send existing messages
         existing_messages = db.query(Message)\
             .filter(Message.call_id == call_id)\
             .order_by(Message.created_at)\
@@ -62,64 +176,152 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
             for m in existing_messages
         ]
 
-        # 기존 메시지 전송
         for msg in existing_messages:
-            await manager.send_message(call_id, {
+            await manager.send_message(state, {
                 "type": "history",
                 "role": msg.role,
                 "content": msg.content,
-                "created_at": msg.created_at.isoformat()
+                "created_at": msg.created_at.isoformat(),
             })
 
-        while True:
-            data = await websocket.receive_text()
-            message_data = json.loads(data)
+        # Main message loop
+        while not state.closed:
+            try:
+                data = await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=HEARTBEAT_INTERVAL + HEARTBEAT_TIMEOUT + 5
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Receive timeout for call_id={call_id}")
+                break
 
-            if message_data.get("type") == "message":
-                user_message = message_data.get("content")
+            try:
+                message_data = json.loads(data)
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid JSON received: {data[:100]}")
+                continue
 
-                # 사용자 메시지 저장
+            msg_type = message_data.get("type")
+            msg_id = message_data.get("message_id")
+
+            # Handle pong response
+            if msg_type == "pong":
+                state.last_pong = datetime.utcnow()
+                continue
+
+            # Handle ping from client
+            if msg_type == "ping":
+                await manager.send_message(state, {
+                    "type": "pong",
+                    "timestamp": datetime.utcnow().isoformat(),
+                })
+                continue
+
+            # Handle chat message
+            if msg_type == "message":
+                # Deduplication check
+                if msg_id and not state.seen_messages.add(msg_id):
+                    logger.debug(f"Duplicate message ignored: {msg_id}")
+                    # Send ack anyway
+                    await manager.send_message(state, {
+                        "type": "ack",
+                        "message_id": msg_id,
+                    })
+                    continue
+
+                user_message = message_data.get("content", "").strip()
+                if not user_message:
+                    continue
+
+                # Send ack
+                if msg_id:
+                    await manager.send_message(state, {
+                        "type": "ack",
+                        "message_id": msg_id,
+                    })
+
+                # Save user message
                 CallService.save_message(db, call_id, "user", user_message)
                 messages_list.append({"role": "user", "content": user_message})
 
-                # 사용자 메시지 확인 전송
-                await manager.send_message(call_id, {
+                # Echo user message
+                await manager.send_message(state, {
                     "type": "message",
                     "role": "user",
                     "content": user_message,
-                    "is_streaming": False
+                    "is_streaming": False,
                 })
 
-                # Claude API 호출 (스트리밍)
+                # Stream Claude response
                 full_response = ""
+                response_id = str(uuid.uuid4())
+
                 async for chunk in claude_service.stream_chat_response(messages_list):
-                    await manager.send_message(call_id, {
-                        "type": "message",
+                    if state.closed:
+                        break
+
+                    await manager.send_message(state, {
+                        "type": "stream_chunk",
+                        "response_id": response_id,
                         "role": "assistant",
                         "content": chunk,
-                        "is_streaming": True
                     })
                     full_response += chunk
 
-                # AI 응답 저장
-                CallService.save_message(db, call_id, "assistant", full_response)
-                messages_list.append({"role": "assistant", "content": full_response})
+                if not state.closed and full_response:
+                    # Save assistant response
+                    CallService.save_message(db, call_id, "assistant", full_response)
+                    messages_list.append({"role": "assistant", "content": full_response})
 
-                # 스트리밍 완료 알림
-                await manager.send_message(call_id, {
-                    "type": "message",
-                    "role": "assistant",
-                    "content": full_response,
-                    "is_streaming": False
-                })
+                    # Send stream end with full content (for TTS)
+                    await manager.send_message(state, {
+                        "type": "stream_end",
+                        "response_id": response_id,
+                        "role": "assistant",
+                        "content": full_response,
+                        "is_streaming": False,
+                    })
+
+            # Handle end call (P0: 분석 태스크 트리거 연결)
+            elif msg_type == "end_call":
+                # Refresh call to get latest state
+                db.refresh(call)
+                if call.status == "in_progress":
+                    call.status = "completed"
+                    call.ended_at = datetime.utcnow()
+                    if call.started_at:
+                        call.duration = int((call.ended_at - call.started_at).total_seconds())
+                    call.is_successful = True
+                    db.commit()
+
+                    # 통화 분석 비동기 실행
+                    from app.tasks.analysis import analyze_call
+                    analyze_call.delay(call_id)
+
+                    await manager.send_message(state, {
+                        "type": "ended",
+                        "call_id": call_id,
+                        "status": "completed",
+                    })
+
+                break
 
     except WebSocketDisconnect:
-        manager.disconnect(call_id)
-    except Exception:
-        manager.disconnect(call_id)
+        logger.info(f"WebSocket disconnected by client: call_id={call_id}")
+    except Exception as e:
+        logger.error(f"WebSocket error for call_id={call_id}: {e}")
         try:
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         except Exception:
             pass
     finally:
+        # Cleanup
+        if heartbeat_task:
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+
+        manager.disconnect(call_id)
         db.close()

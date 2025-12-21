@@ -35,3 +35,4 @@ class Elderly(Base):
     # 관계
     caregiver = relationship("User", back_populates="elderly")
     calls = relationship("Call", back_populates="elderly", cascade="all, delete-orphan")
+    devices = relationship("ElderlyDevice", back_populates="elderly", cascade="all, delete-orphan")

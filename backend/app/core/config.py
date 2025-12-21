@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
+    # Redis (Celery broker)
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     # JWT
     SECRET_KEY: str
     ALGORITHM: str = "HS256"

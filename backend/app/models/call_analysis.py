@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -11,14 +11,14 @@ class CallAnalysis(Base):
     id = Column(Integer, primary_key=True, index=True)
     call_id = Column(Integer, ForeignKey("calls.id", ondelete="CASCADE"), nullable=False, unique=True)
 
-    # 분석 결과
-    risk_level = Column(String(20), default="low")  # 'low', 'medium', 'high', 'critical'
-    sentiment_score = Column(Float, default=0.0)  # -1.0 ~ 1.0
+    # Analysis results
     summary = Column(Text, nullable=True)
-    recommendations = Column(JSON, nullable=True)
+    risk_score = Column(Integer, default=0)  # 0-100
+    concerns = Column(Text, nullable=True)
+    recommendations = Column(Text, nullable=True)
 
-    # 메타데이터
-    analyzed_at = Column(DateTime, default=datetime.utcnow)
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    # 관계
+    # Relationship
     call = relationship("Call", back_populates="analysis")
