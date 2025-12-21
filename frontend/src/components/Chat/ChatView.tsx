@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useStore } from '@/store/useStore';
@@ -9,29 +9,61 @@ import { useCalls } from '@/hooks/useCalls';
 import { useElderly } from '@/hooks/useElderly';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
-import CallSummary from './CallSummary';
-import { StatusBadge, RiskBadge } from '@/components/Common/Badge';
-import { CALL_STATUS, TRIGGER_TYPES } from '@/utils/constants';
+import { StatusBadge } from '@/components/Common/Badge';
+import {
+  CallReportSummary,
+  CallRiskPanel,
+  CallActionItems,
+  CallTranscript,
+  AnalysisSkeleton,
+} from '@/components/Calls';
+import { TRIGGER_TYPES } from '@/utils/constants';
 import { format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import clsx from 'clsx';
+import { ChatMessage } from '@/types/calls';
 
 interface ChatViewProps {
   callId: number;
 }
 
+type TabType = 'summary' | 'transcript' | 'meta';
+
+const TABS: { id: TabType; label: string }[] = [
+  { id: 'summary', label: '요약' },
+  { id: 'transcript', label: '대화 원문' },
+  { id: 'meta', label: '통화 메타' },
+];
+
+const POLL_INTERVAL = 5000; // 5초
+const MAX_POLLS = 12; // 최대 12회 (60초)
+
 export default function ChatView({ callId }: ChatViewProps) {
   const router = useRouter();
-  const { currentCall, clearChatMessages } = useStore();
+  const { currentCall, clearChatMessages, chatMessages } = useStore();
   const { sendMessage, disconnect, status: wsStatus } = useWebSocket(callId);
   const { fetchById, endCall, callsLoading } = useCalls();
   const { fetchById: fetchElderly, currentElderly } = useElderly();
-  const [showAnalysis, setShowAnalysis] = useState(true);
 
+  // 탭 상태
+  const [activeTab, setActiveTab] = useState<TabType>('summary');
+
+  // 분석 폴링 상태
+  const [pollCount, setPollCount] = useState(0);
+  const [isPolling, setIsPolling] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 앵커 하이라이트 상태
+  const [highlightMessageIndex, setHighlightMessageIndex] = useState<number | null>(null);
+
+  // 초기 데이터 로드
   useEffect(() => {
     fetchById(callId);
     return () => {
       clearChatMessages();
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
     };
   }, [callId, fetchById, clearChatMessages]);
 
@@ -41,6 +73,94 @@ export default function ChatView({ callId }: ChatViewProps) {
       fetchElderly(currentCall.elderly_id);
     }
   }, [currentCall?.elderly_id, fetchElderly]);
+
+  // 분석 폴링 로직 - effect 내에서 직접 관리
+  useEffect(() => {
+    const callEnded = currentCall?.status === 'completed' || currentCall?.status === 'failed' || currentCall?.status === 'cancelled';
+
+    // 분석이 있거나 통화가 끝나지 않았으면 폴링 불필요
+    if (!callEnded || currentCall?.analysis) {
+      return;
+    }
+
+    // 이미 폴링 중이면 중복 시작 방지
+    if (pollIntervalRef.current) {
+      return;
+    }
+
+    let localPollCount = 0;
+    setIsPolling(true);
+
+    const poll = () => {
+      if (localPollCount >= MAX_POLLS) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setIsPolling(false);
+        setPollCount(localPollCount);
+        return;
+      }
+      localPollCount++;
+      setPollCount(localPollCount);
+      fetchById(callId);
+    };
+
+    // 초기 폴링 즉시 실행하지 않고 interval로만
+    pollIntervalRef.current = setInterval(poll, POLL_INTERVAL);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [currentCall?.status, currentCall?.analysis, callId, fetchById]);
+
+  // 분석 결과가 들어오면 폴링 중단
+  useEffect(() => {
+    if (currentCall?.analysis && pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+      setIsPolling(false);
+    }
+  }, [currentCall?.analysis]);
+
+  // 수동 새로고침
+  const handleManualRefresh = useCallback(() => {
+    // 기존 폴링 중지
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    setPollCount(0);
+    setIsPolling(true);
+    fetchById(callId);
+
+    // 새로운 폴링 시작
+    let localPollCount = 0;
+    pollIntervalRef.current = setInterval(() => {
+      if (localPollCount >= MAX_POLLS) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setIsPolling(false);
+        setPollCount(localPollCount);
+        return;
+      }
+      localPollCount++;
+      setPollCount(localPollCount);
+      fetchById(callId);
+    }, POLL_INTERVAL);
+  }, [callId, fetchById]);
+
+  // 리스크 근거 클릭 시 해당 메시지로 이동
+  const handleReasonClick = useCallback((messageIndex: number) => {
+    setActiveTab('transcript');
+    setHighlightMessageIndex(messageIndex);
+  }, []);
 
   const handleEndCall = async () => {
     try {
@@ -62,8 +182,20 @@ export default function ChatView({ callId }: ChatViewProps) {
 
   const isCallEnded = currentCall?.status === 'completed' || currentCall?.status === 'failed' || currentCall?.status === 'cancelled';
   const isCallActive = currentCall?.status === 'in_progress';
-  const hasAnalysis = currentCall?.analysis;
+  const hasAnalysis = !!currentCall?.analysis;
   const callTime = currentCall?.started_at || currentCall?.scheduled_for || currentCall?.created_at;
+
+  // 메시지 데이터: API에서 가져온 메시지 또는 실시간 메시지
+  const messagesData: ChatMessage[] = currentCall?.messages && currentCall.messages.length > 0
+    ? currentCall.messages
+    : chatMessages.map((msg, idx) => ({
+        id: idx,
+        call_id: callId,
+        role: msg.role as ChatMessage['role'],
+        content: msg.content,
+        is_streaming: msg.is_streaming,
+        created_at: new Date().toISOString(),
+      }));
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
@@ -90,7 +222,7 @@ export default function ChatView({ callId }: ChatViewProps) {
                 {currentCall?.status && <StatusBadge status={currentCall.status} />}
               </div>
               <div className="flex items-center gap-3 text-sm text-gray-500">
-                <span>통화 #{callId}</span>
+                <span>자동 통화 #{callId}</span>
                 {currentCall?.trigger_type && (
                   <>
                     <span className="text-gray-300">|</span>
@@ -129,19 +261,6 @@ export default function ChatView({ callId }: ChatViewProps) {
               </div>
             )}
 
-            {/* 분석 토글 (데스크톱) */}
-            {hasAnalysis && (
-              <button
-                onClick={() => setShowAnalysis(!showAnalysis)}
-                className="hidden lg:flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                {showAnalysis ? '분석 숨기기' : '분석 보기'}
-              </button>
-            )}
-
             {/* 통화 종료 버튼 */}
             {isCallActive && (
               <button
@@ -166,87 +285,165 @@ export default function ChatView({ callId }: ChatViewProps) {
         </div>
       </div>
 
-      {/* 메인 콘텐츠 */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* 대화 로그 */}
-        <div className={clsx(
-          'flex flex-col flex-1 min-w-0',
-          hasAnalysis && showAnalysis ? 'lg:w-1/2' : 'w-full'
-        )}>
+      {/* 통화 진행 중일 때: 기존 실시간 채팅 UI */}
+      {isCallActive && (
+        <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden">
             <MessageList />
           </div>
-          {!isCallEnded && (
-            <div className="flex-shrink-0 border-t border-gray-200">
-              <MessageInput onSend={handleSendMessage} disabled={isCallEnded} />
-            </div>
-          )}
+          <div className="flex-shrink-0 border-t border-gray-200">
+            <MessageInput onSend={handleSendMessage} disabled={false} />
+          </div>
         </div>
+      )}
 
-        {/* 분석 결과 패널 (우측) */}
-        {hasAnalysis && showAnalysis && (
-          <div className="hidden lg:flex flex-col w-1/2 border-l border-gray-200 bg-gray-50 overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">분석 결과</h3>
-                {currentCall.analysis && (
-                  <RiskBadge level={currentCall.analysis.risk_level} />
-                )}
-              </div>
-              <CallSummary analysis={currentCall.analysis!} />
-
-              {/* 조치 버튼 */}
-              <div className="mt-6 space-y-3">
-                <Link
-                  href={`/elderly/${currentCall.elderly_id}`}
-                  className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  어르신 상세 정보
-                </Link>
-                <button
-                  onClick={() => {
-                    // TODO: 메모 기능 구현
-                    alert('메모 기능은 추후 구현 예정입니다.');
-                  }}
-                  className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-white text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  메모 추가
-                </button>
-              </div>
+      {/* 통화 종료 후: 탭 기반 UI */}
+      {isCallEnded && (
+        <>
+          {/* 탭 네비게이션 */}
+          <div className="flex-shrink-0 bg-white border-b border-gray-200">
+            <div className="px-6">
+              <nav className="flex gap-6" aria-label="Tabs">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={clsx(
+                      'py-3 px-1 border-b-2 text-sm font-medium transition-colors',
+                      activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* 모바일용 분석 결과 (하단 시트) */}
-      {hasAnalysis && (
-        <div className="lg:hidden flex-shrink-0 border-t border-gray-200 bg-white">
-          <button
-            onClick={() => setShowAnalysis(!showAnalysis)}
-            className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium text-gray-700"
-          >
-            <span className="flex items-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              분석 결과
-            </span>
-            {currentCall.analysis && (
-              <RiskBadge level={currentCall.analysis.risk_level} size="sm" />
+          {/* 탭 콘텐츠 */}
+          <div className="flex-1 overflow-y-auto bg-gray-50">
+            {/* 요약 탭 */}
+            {activeTab === 'summary' && (
+              <div className="p-6 max-w-3xl mx-auto space-y-4">
+                {hasAnalysis ? (
+                  <>
+                    <CallReportSummary analysis={currentCall.analysis!} />
+                    <CallRiskPanel
+                      analysis={currentCall.analysis!}
+                      onReasonClick={handleReasonClick}
+                    />
+                    <CallActionItems
+                      analysis={currentCall.analysis!}
+                      elderlyId={currentCall.elderly_id}
+                    />
+                  </>
+                ) : (
+                  <AnalysisSkeleton
+                    isPolling={isPolling}
+                    pollCount={pollCount}
+                    maxPolls={MAX_POLLS}
+                    onRefresh={handleManualRefresh}
+                  />
+                )}
+              </div>
             )}
-          </button>
-          {showAnalysis && (
-            <div className="px-4 pb-4 max-h-64 overflow-y-auto">
-              <CallSummary analysis={currentCall.analysis!} compact />
-            </div>
-          )}
-        </div>
+
+            {/* 대화 원문 탭 */}
+            {activeTab === 'transcript' && (
+              <div className="h-full">
+                <CallTranscript
+                  messages={messagesData}
+                  highlightMessageIndex={highlightMessageIndex}
+                  onClearHighlight={() => setHighlightMessageIndex(null)}
+                />
+              </div>
+            )}
+
+            {/* 통화 메타 탭 */}
+            {activeTab === 'meta' && (
+              <div className="p-6 max-w-3xl mx-auto">
+                <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+                  <h3 className="text-lg font-medium text-gray-900">통화 정보</h3>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <dt className="text-gray-500">통화 ID</dt>
+                      <dd className="font-medium text-gray-900">#{currentCall?.id}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">통화 유형</dt>
+                      <dd className="font-medium text-gray-900">
+                        {currentCall?.call_type === 'voice' ? '음성' : currentCall?.call_type}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">트리거</dt>
+                      <dd className="font-medium text-gray-900">
+                        {currentCall?.trigger_type && TRIGGER_TYPES[currentCall.trigger_type]}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">상태</dt>
+                      <dd className="font-medium text-gray-900">{currentCall?.status}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">시작 시각</dt>
+                      <dd className="font-medium text-gray-900">
+                        {currentCall?.started_at &&
+                          format(parseISO(currentCall.started_at), 'yyyy-MM-dd HH:mm:ss', { locale: ko })}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">종료 시각</dt>
+                      <dd className="font-medium text-gray-900">
+                        {currentCall?.ended_at &&
+                          format(parseISO(currentCall.ended_at), 'yyyy-MM-dd HH:mm:ss', { locale: ko })}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">통화 시간</dt>
+                      <dd className="font-medium text-gray-900">
+                        {currentCall?.duration
+                          ? `${Math.floor(currentCall.duration / 60)}분 ${currentCall.duration % 60}초`
+                          : '-'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">메시지 수</dt>
+                      <dd className="font-medium text-gray-900">{messagesData.length}개</dd>
+                    </div>
+                  </div>
+
+                  {hasAnalysis && currentCall?.analysis?.analyzed_at && (
+                    <div className="pt-4 border-t border-gray-100">
+                      <h4 className="text-sm font-medium text-gray-500 mb-2">분석 정보</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <dt className="text-gray-500">분석 시각</dt>
+                          <dd className="font-medium text-gray-900">
+                            {format(parseISO(currentCall.analysis.analyzed_at), 'yyyy-MM-dd HH:mm:ss', { locale: ko })}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500">감정 점수</dt>
+                          <dd className="font-medium text-gray-900">
+                            {(currentCall.analysis.sentiment_score * 100).toFixed(0)}%
+                          </dd>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-4 border-t border-gray-100 text-xs text-gray-400">
+                    <p>TODO: 연결 품질, 모델 응답 시간 등 추가 메타 데이터 표시 예정</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

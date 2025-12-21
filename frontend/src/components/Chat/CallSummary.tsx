@@ -1,7 +1,6 @@
 'use client';
 
 import { CallAnalysis } from '@/types/calls';
-import { RiskBadge } from '@/components/Common/Badge';
 import clsx from 'clsx';
 
 interface CallSummaryProps {
