@@ -4,6 +4,15 @@ import { useEffect, useState, useCallback } from 'react';
 import { useStore } from '@/store/useStore';
 import { wsService } from '@/services/websocket';
 
+// Type guard helpers for narrowing unknown fields
+function asString(v: unknown, fallback = ''): string {
+  return typeof v === 'string' ? v : fallback;
+}
+
+function asBool(v: unknown, fallback = false): boolean {
+  return typeof v === 'boolean' ? v : fallback;
+}
+
 export const useWebSocket = (callId: number | null) => {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
 
@@ -23,15 +32,23 @@ export const useWebSocket = (callId: number | null) => {
 
     // Subscribe to incoming messages
     const unsubscribeMessages = wsService.addMessageListener((message) => {
-      if (message.type === 'message') {
+      const type = asString(message.type);
+
+      if (type === 'message') {
+        const role = asString(message.role, 'assistant');
+        const content = asString(message.content, '');
+        const is_streaming = asBool(message.is_streaming, false);
+
+        if (!content.trim()) return;
+
         addChatMessage({
-          role: message.role || 'assistant',
-          content: message.content,
-          is_streaming: message.is_streaming || false,
+          role,
+          content,
+          is_streaming,
         });
-      } else if (message.type === 'error') {
-        setError(message.message || 'Unknown WebSocket error');
-      } else if (message.type === 'call_ended') {
+      } else if (type === 'error') {
+        setError(asString(message.message, 'Unknown WebSocket error'));
+      } else if (type === 'call_ended') {
         wsService.disconnect();
       }
     });
