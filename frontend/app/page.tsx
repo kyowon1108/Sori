@@ -1,27 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
+import { useIsClient } from '@/hooks/useHydration';
 
 export default function HomePage() {
   const router = useRouter();
   const { isAuthenticated } = useStore();
-  const [mounted, setMounted] = useState(false);
+  const isClient = useIsClient();
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (mounted) {
+    if (isClient) {
       if (isAuthenticated) {
         router.push('/dashboard');
       } else {
         router.push('/login');
       }
     }
-  }, [mounted, isAuthenticated, router]);
+  }, [isClient, isAuthenticated, router]);
 
   return (
     <div className="flex items-center justify-center min-h-screen">

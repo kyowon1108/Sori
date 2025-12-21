@@ -39,9 +39,12 @@ struct NotificationNames {
     static let userDidLogin = Notification.Name("userDidLogin")
     static let userDidLogout = Notification.Name("userDidLogout")
     static let tokenDidRefresh = Notification.Name("tokenDidRefresh")
-    static let incomingCall = Notification.Name("incomingCall")
+    /// Canonical notification for navigating to a call screen.
+    /// Use this for all call navigation (scheduled, incoming, tapped notification).
     static let navigateToCall = Notification.Name("navigateToCall")
+    /// Posted when device token is invalidated (401/403 from WebSocket or API).
     static let tokenInvalid = Notification.Name("tokenInvalid")
+    /// Posted when FCM token is received/refreshed.
     static let fcmTokenReceived = Notification.Name("fcmTokenReceived")
 }
 

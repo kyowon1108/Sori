@@ -3,8 +3,8 @@
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
 import { z } from 'zod';
+import axios from 'axios';
 import { apiClient } from '@/services/api';
 import { Elderly } from '@/types/elderly';
 
@@ -101,11 +101,13 @@ export default function ElderlyForm({ elderly, isEdit = false }: ElderlyFormProp
       }
       router.push('/elderly');
       router.refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to save elderly:', error);
-      setError('root', {
-        message: error.response?.data?.message || (isEdit ? '어르신 정보 수정에 실패했습니다.' : '어르신 등록에 실패했습니다.'),
-      });
+      let errorMessage = isEdit ? '어르신 정보 수정에 실패했습니다.' : '어르신 등록에 실패했습니다.';
+      if (axios.isAxiosError(error) && error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      setError('root', { message: errorMessage });
     }
   };
 

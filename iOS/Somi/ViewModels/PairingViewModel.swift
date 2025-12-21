@@ -142,9 +142,17 @@ final class PairingViewModel: ObservableObject {
             isLoading = false
             fcmRetryCount = 0
 
-            // Use placeholder token for development
-            let placeholderToken = "placeholder_\(UUID().uuidString.prefix(8))"
+            #if DEBUG
+            // Use placeholder token for development ONLY
+            print("[PairingVM] DEBUG: Using placeholder FCM token")
+            let placeholderToken = "dev_placeholder_\(UUID().uuidString.prefix(8))"
             performClaim(with: placeholderToken)
+            #else
+            // Production: FCM token is required - show error and prompt user
+            errorMessage = PairingErrorMessages.fcmTokenMissing
+            showRetryButton = true
+            showPermissionAlert = true
+            #endif
         }
     }
 

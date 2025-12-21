@@ -290,7 +290,7 @@ export default function DevicesTab({ elderlyId, elderlyName }: DevicesTabProps) 
               </li>
               <li className="flex items-start gap-3">
                 <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
-                <span>앱을 열고 <strong>"보호자 연결"</strong> 메뉴를 선택합니다</span>
+                <span>앱을 열고 <strong>&quot;보호자 연결&quot;</strong> 메뉴를 선택합니다</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>

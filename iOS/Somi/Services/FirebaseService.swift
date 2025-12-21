@@ -119,12 +119,19 @@ final class FirebaseService: NSObject {
         //     }
         // }
 
-        // For development without Firebase:
+        #if DEBUG
+        // For development without Firebase SDK:
         // Generate a placeholder token for testing
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             let placeholderToken = "dev_fcm_token_\(UUID().uuidString.prefix(8))"
+            print("[Firebase] DEBUG: Using placeholder FCM token")
             self?.handleTokenReceived(placeholderToken)
         }
+        #else
+        // Production: Firebase SDK must be configured
+        // If we get here without Firebase, fail gracefully
+        handleTokenFetchFailure()
+        #endif
     }
 
     private func handleTokenReceived(_ token: String) {
@@ -218,6 +225,7 @@ final class FirebaseService: NSObject {
         }
 
         // Handle based on notification type
+        // All call-related notifications use navigateToCall for consistent routing
         switch notificationType {
         case "scheduled_call", "incoming_call":
             if let callId = callId {
@@ -225,30 +233,16 @@ final class FirebaseService: NSObject {
             }
 
         case "missed_call":
-            // Navigate to home with missed call info
-            NotificationCenter.default.post(
-                name: NotificationNames.incomingCall,
-                object: nil,
-                userInfo: [
-                    "type": "missed_call",
-                    "call_id": callId as Any,
-                    "elderly_id": elderlyId as Any
-                ]
-            )
+            // Missed call - log but don't auto-navigate (user tapped notification)
+            print("[Firebase] Missed call notification - elderly_id: \(elderlyId ?? -1)")
+            // Elderly app doesn't need special handling for missed calls
 
         case "high_risk":
-            // Navigate to home with high risk alert
-            NotificationCenter.default.post(
-                name: NotificationNames.incomingCall,
-                object: nil,
-                userInfo: [
-                    "type": "high_risk",
-                    "elderly_id": elderlyId as Any
-                ]
-            )
+            // High risk alert - log for elderly app (caregiver web handles this)
+            print("[Firebase] High risk notification - elderly_id: \(elderlyId ?? -1)")
 
         default:
-            // Generic call notification
+            // Generic call notification - attempt navigation if call_id present
             if let callId = callId {
                 postNavigateToCall(callId: callId, elderlyId: elderlyId)
             }
@@ -261,17 +255,11 @@ final class FirebaseService: NSObject {
             userInfo["elderly_id"] = elderlyId
         }
 
+        // Use single canonical notification for call navigation
         NotificationCenter.default.post(
             name: NotificationNames.navigateToCall,
             object: nil,
             userInfo: userInfo
-        )
-
-        // Also post to incomingCall for backward compatibility
-        NotificationCenter.default.post(
-            name: NotificationNames.incomingCall,
-            object: nil,
-            userInfo: ["call_id": callId]
         )
     }
 }
