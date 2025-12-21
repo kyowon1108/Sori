@@ -80,7 +80,7 @@ export default function Sidebar() {
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-center h-16 border-b border-gray-200">
             <Link href="/dashboard" className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-blue-600">SOMI</span>
+              <span className="text-2xl font-bold text-blue-600">SORI</span>
               <span className="text-sm text-gray-500">Care Connect</span>
             </Link>
           </div>
@@ -109,7 +109,7 @@ export default function Sidebar() {
 
           <div className="p-4 border-t border-gray-200">
             <div className="text-xs text-gray-400 text-center">
-              Somi Care Connect v1.0
+              SORI v1.0
             </div>
           </div>
         </div>
