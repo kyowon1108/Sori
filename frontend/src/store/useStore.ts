@@ -41,6 +41,7 @@ interface StoreState {
   setCallsList: (list: Call[]) => void;
   setCallsLoading: (loading: boolean) => void;
   addChatMessage: (message: { role: string; content: string; is_streaming?: boolean }) => void;
+  setChatMessages: (messages: Array<{ role: string; content: string; is_streaming?: boolean }>) => void;
   clearChatMessages: () => void;
 
   setSidebarOpen: (open: boolean) => void;
@@ -103,6 +104,7 @@ export const useStore = create<StoreState>()(
         set((state) => ({
           chatMessages: [...state.chatMessages, message],
         })),
+      setChatMessages: (messages) => set({ chatMessages: messages }),
       clearChatMessages: () => set({ chatMessages: [] }),
 
       // UI actions

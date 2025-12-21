@@ -49,6 +49,7 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-sori_user}:${DB_PASSWORD:-sori_password}@postgres:5432/${DB_NAME:-sori_db}
       REDIS_URL: redis://redis:6379/0
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_HOURS: 24

@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.elderly import Elderly
 from app.schemas.elderly import ElderlyCreateRequest, ElderlyUpdateRequest
 from app.core.exceptions import NotFoundError, ForbiddenError
@@ -26,6 +26,7 @@ class ElderlyService:
     @staticmethod
     def get_list(db: Session, caregiver_id: int, skip: int = 0, limit: int = 10):
         return db.query(Elderly)\
+            .options(joinedload(Elderly.devices))\
             .filter(Elderly.caregiver_id == caregiver_id)\
             .offset(skip)\
             .limit(limit)\
@@ -33,7 +34,10 @@ class ElderlyService:
 
     @staticmethod
     def get_by_id(db: Session, elderly_id: int, caregiver_id: int):
-        elderly = db.query(Elderly).filter(Elderly.id == elderly_id).first()
+        elderly = db.query(Elderly)\
+            .options(joinedload(Elderly.devices))\
+            .filter(Elderly.id == elderly_id)\
+            .first()
         if not elderly:
             raise NotFoundError("어르신")
         if elderly.caregiver_id != caregiver_id:

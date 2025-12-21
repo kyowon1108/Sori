@@ -16,6 +16,7 @@ export const useCalls = () => {
   const setCallsList = useStore((state) => state.setCallsList);
   const setCurrentCall = useStore((state) => state.setCurrentCall);
   const setCallsLoading = useStore((state) => state.setCallsLoading);
+  const setChatMessages = useStore((state) => state.setChatMessages);
   const clearChatMessages = useStore((state) => state.clearChatMessages);
   const setError = useStore((state) => state.setError);
 
@@ -37,6 +38,16 @@ export const useCalls = () => {
       setCallsLoading(true);
       const call = await callsService.getById(id);
       setCurrentCall(call);
+      // Populate chatMessages from historical messages
+      if (call.messages && call.messages.length > 0) {
+        setChatMessages(
+          call.messages.map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+            is_streaming: false,
+          }))
+        );
+      }
       return call;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
@@ -45,7 +56,7 @@ export const useCalls = () => {
     } finally {
       setCallsLoading(false);
     }
-  }, [setCallsLoading, setCurrentCall, setError]);
+  }, [setCallsLoading, setCurrentCall, setChatMessages, setError]);
 
   const startCall = useCallback(
     async (elderlyId: number, callType: string = 'voice') => {

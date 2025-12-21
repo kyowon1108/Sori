@@ -23,7 +23,7 @@ async def list_elderly(
     total = len(elderly_list)
     return success_response(
         data={
-            "items": [ElderlyResponse.model_validate(e).model_dump() for e in elderly_list],
+            "items": [ElderlyResponse.from_orm_with_device(e).model_dump() for e in elderly_list],
             "total": total
         },
         message="OK",
@@ -40,7 +40,7 @@ async def get_elderly(
     """어르신 상세 조회"""
     elderly = ElderlyService.get_by_id(db, elderly_id, current_user.id)
     return success_response(
-        data=ElderlyResponse.model_validate(elderly).model_dump(),
+        data=ElderlyResponse.from_orm_with_device(elderly).model_dump(),
         message="OK",
         code=200
     )

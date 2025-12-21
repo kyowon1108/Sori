@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		20D392BF6B9EF3441B05EE7E /* VoiceCallViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020F8F1B11BC7B28C62B3C32 /* VoiceCallViewModel.swift */; };
+		3AEEACE385E90A0D7FED0088 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03AA8C74233DFA30E248B6E4 /* SpeechService.swift */; };
+		61FE90717649493C07DE7BCF /* VoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D709DE3390274A89DCE07BC /* VoiceCallView.swift */; };
+		93EA3BC2918D97337BE3C9E8 /* TTSService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D539B688F5D9164772CFFA9 /* TTSService.swift */; };
 		A1000001238E5F9A00000001 /* SomiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002238E5F9A00000001 /* SomiApp.swift */; };
 		A1000003238E5F9A00000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004238E5F9A00000001 /* AppDelegate.swift */; };
 		A1000005238E5F9A00000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000006238E5F9A00000001 /* ContentView.swift */; };
@@ -47,9 +51,15 @@
 		A1000053238E5F9A00000001 /* PairingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000054238E5F9A00000001 /* PairingViewModel.swift */; };
 		A1000055238E5F9A00000001 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000056238E5F9A00000001 /* PairingView.swift */; };
 		A1000057238E5F9A00000001 /* ElderlyHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000058238E5F9A00000001 /* ElderlyHomeView.swift */; };
+		E4C4BA3741A2CDBB15AD9088 /* PendingCallService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93FEEAAA752D39F98343334E /* PendingCallService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		020F8F1B11BC7B28C62B3C32 /* VoiceCallViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VoiceCallViewModel.swift; sourceTree = "<group>"; };
+		03AA8C74233DFA30E248B6E4 /* SpeechService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
+		1D709DE3390274A89DCE07BC /* VoiceCallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VoiceCallView.swift; path = Call/VoiceCallView.swift; sourceTree = "<group>"; };
+		5D539B688F5D9164772CFFA9 /* TTSService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TTSService.swift; sourceTree = "<group>"; };
+		93FEEAAA752D39F98343334E /* PendingCallService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PendingCallService.swift; sourceTree = "<group>"; };
 		A1000000238E5F9A00000000 /* Somi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Somi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000002238E5F9A00000001 /* SomiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SomiApp.swift; sourceTree = "<group>"; };
 		A1000004238E5F9A00000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -158,6 +168,9 @@
 				A1000018238E5F9A00000001 /* KeychainService.swift */,
 				A1000052238E5F9A00000001 /* PairingService.swift */,
 				A100001A238E5F9A00000001 /* WebSocketService.swift */,
+				5D539B688F5D9164772CFFA9 /* TTSService.swift */,
+				03AA8C74233DFA30E248B6E4 /* SpeechService.swift */,
+				93FEEAAA752D39F98343334E /* PendingCallService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -172,16 +185,6 @@
 			path = Utils;
 			sourceTree = "<group>";
 		};
-		A1000106238E5F9A00000001 /* Extensions */ = {
-			isa = PBXGroup;
-			children = (
-				A1000020238E5F9A00000001 /* Date+Extensions.swift */,
-				A1000022238E5F9A00000001 /* String+Extensions.swift */,
-				A1000024238E5F9A00000001 /* URLComponents+Extensions.swift */,
-			);
-			path = Extensions;
-			sourceTree = "<group>";
-		};
 		A1000104238E5F9A00000001 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -190,6 +193,7 @@
 				A100002A238E5F9A00000001 /* ChatViewModel.swift */,
 				A100002C238E5F9A00000001 /* ElderlyViewModel.swift */,
 				A1000054238E5F9A00000001 /* PairingViewModel.swift */,
+				020F8F1B11BC7B28C62B3C32 /* VoiceCallViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -203,8 +207,19 @@
 				A100010F238E5F9A00000001 /* Elderly */,
 				A1000109238E5F9A00000001 /* Main */,
 				A1000110238E5F9A00000001 /* Pairing */,
+				DC9415888680B43D2E080276 /* Call */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		A1000106238E5F9A00000001 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				A1000020238E5F9A00000001 /* Date+Extensions.swift */,
+				A1000022238E5F9A00000001 /* String+Extensions.swift */,
+				A1000024238E5F9A00000001 /* URLComponents+Extensions.swift */,
+			);
+			path = Extensions;
 			sourceTree = "<group>";
 		};
 		A1000107238E5F9A00000001 /* Auth */ = {
@@ -257,6 +272,14 @@
 			path = Pairing;
 			sourceTree = "<group>";
 		};
+		DC9415888680B43D2E080276 /* Call */ = {
+			isa = PBXGroup;
+			children = (
+				1D709DE3390274A89DCE07BC /* VoiceCallView.swift */,
+			);
+			name = Call;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -285,7 +308,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					A10000F9238E5F9A00000001 = {
 						CreatedOnToolsVersion = 15.0;
@@ -366,6 +389,11 @@
 				A1000045238E5F9A00000001 /* MainContainerView.swift in Sources */,
 				A1000055238E5F9A00000001 /* PairingView.swift in Sources */,
 				A1000057238E5F9A00000001 /* ElderlyHomeView.swift in Sources */,
+				93EA3BC2918D97337BE3C9E8 /* TTSService.swift in Sources */,
+				3AEEACE385E90A0D7FED0088 /* SpeechService.swift in Sources */,
+				E4C4BA3741A2CDBB15AD9088 /* PendingCallService.swift in Sources */,
+				20D392BF6B9EF3441B05EE7E /* VoiceCallViewModel.swift in Sources */,
+				61FE90717649493C07DE7BCF /* VoiceCallView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -377,6 +405,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -430,6 +459,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -440,6 +470,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -486,6 +517,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};

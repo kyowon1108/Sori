@@ -10,6 +10,10 @@ struct ElderlyHomeView: View {
     @State private var currentCallId: Int?
     @State private var connectionStatus: ConnectionStatus = .connected
 
+    #if DEBUG
+    @StateObject private var pendingCallChecker = PendingCallChecker()
+    #endif
+
     enum ConnectionStatus {
         case connected
         case connecting
@@ -26,6 +30,13 @@ struct ElderlyHomeView: View {
 
                 // Status indicator
                 statusSection
+
+                #if DEBUG
+                // Debug: Show pending call status
+                if let pendingCall = pendingCallChecker.pendingCall {
+                    debugPendingCallBanner(callId: pendingCall.call_id)
+                }
+                #endif
 
                 Spacer()
 
@@ -45,7 +56,8 @@ struct ElderlyHomeView: View {
             }
             .fullScreenCover(isPresented: $showCallView) {
                 if let callId = currentCallId {
-                    ElderlyCallView(callId: callId, isPresented: $showCallView)
+                    // Use VoiceCallView for voice-based calls
+                    VoiceCallView(callId: callId, isPresented: $showCallView)
                 }
             }
             // Navigation handled via pendingCallId binding from ContentView
@@ -62,7 +74,26 @@ struct ElderlyHomeView: View {
                     pendingCallId = nil
                     navigateToCall(callId)
                 }
+
+                #if DEBUG
+                // Start polling for pending calls in DEBUG mode
+                pendingCallChecker.startPolling()
+                #endif
             }
+            .onDisappear {
+                #if DEBUG
+                pendingCallChecker.stopPolling()
+                #endif
+            }
+            #if DEBUG
+            .onChange(of: pendingCallChecker.pendingCall) { _, newValue in
+                // Auto-navigate to call when pending call is detected
+                if let pendingCall = newValue, pendingCall.status == "scheduled" {
+                    navigateToCall(pendingCall.call_id)
+                    pendingCallChecker.clearPendingCall()
+                }
+            }
+            #endif
         }
         .navigationViewStyle(StackNavigationViewStyle())
     }
@@ -114,7 +145,7 @@ struct ElderlyHomeView: View {
                     .font(.title)
                     .foregroundColor(.secondary)
 
-                Text("보호자가 전화를 걸면 알려드릴게요")
+                Text("예정된 시간에 자동으로 전화가 옵니다")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -150,6 +181,38 @@ struct ElderlyHomeView: View {
         }
     }
 
+    // MARK: - Debug Pending Call Banner
+
+    #if DEBUG
+    private func debugPendingCallBanner(callId: Int) -> some View {
+        VStack(spacing: 8) {
+            Text("📞 예정된 통화 감지됨")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            Text("Call ID: \(callId)")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.8))
+
+            Button("통화 시작") {
+                navigateToCall(callId)
+                pendingCallChecker.clearPendingCall()
+            }
+            .font(.headline)
+            .foregroundColor(.blue)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 8)
+            .background(Color.white)
+            .cornerRadius(8)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.blue)
+        )
+    }
+    #endif
+
     // MARK: - Unpair Button
 
     private var unpairButton: some View {
@@ -173,7 +236,7 @@ struct ElderlyHomeView: View {
     }
 }
 
-// MARK: - Elderly Call View
+// MARK: - Elderly Call View (Text-based fallback, kept for compatibility)
 
 struct ElderlyCallView: View {
     let callId: Int

@@ -22,7 +22,10 @@ class Settings(BaseSettings):
     DEVICE_TOKEN_EXPIRE_DAYS: int = 90
 
     # Claude API
-    CLAUDE_API_KEY: str
+    CLAUDE_API_KEY: str = ""
+
+    # OpenAI API
+    OPENAI_API_KEY: str = ""
 
     # CORS
     FRONTEND_URL: str = "http://localhost:3000"
