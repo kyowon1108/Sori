@@ -1,8 +1,9 @@
 import Foundation
 
 struct APIConstants {
-    static let baseURL = "http://localhost:8000"
-    static let wsBaseURL = "ws://localhost:8000"
+    // Use local network IP for device testing (change to localhost for simulator)
+    static let baseURL = "http://192.168.0.42:8000"
+    static let wsBaseURL = "ws://192.168.0.42:8000"
     static let apiTimeout = 30.0
     static let environment = "development"
 }
@@ -15,7 +16,7 @@ struct ValidationRules {
 }
 
 struct AppConstants {
-    static let appName = "Somi"
+    static let appName = "SORI"
     static let appVersion = "1.0.0"
     static let bundleId = "com.sori.app"
 }

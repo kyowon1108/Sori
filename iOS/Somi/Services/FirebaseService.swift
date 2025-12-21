@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import UserNotifications
 
 final class FirebaseService: NSObject {
     static let shared = FirebaseService()
