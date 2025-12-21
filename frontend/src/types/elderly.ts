@@ -73,7 +73,7 @@ export interface ElderlyCreateRequest {
   notes?: string;
 }
 
-export interface ElderlyUpdateRequest extends Partial<ElderlyCreateRequest> {}
+export type ElderlyUpdateRequest = Partial<ElderlyCreateRequest>;
 
 export interface ElderlyScheduleUpdateRequest {
   enabled: boolean;

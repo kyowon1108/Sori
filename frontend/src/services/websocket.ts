@@ -2,7 +2,7 @@ import { useStore } from '@/store/useStore';
 
 type WebSocketMessage = {
   type: string;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 type MessageHandler = (message: WebSocketMessage) => void;
@@ -197,14 +197,14 @@ class WebSocketService {
     this._notifyStatus('disconnected');
   }
 
-  private _sendRaw(data: any) {
+  private _sendRaw(data: string | Record<string, unknown>) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       const message = typeof data === 'string' ? data : JSON.stringify(data);
       this.ws.send(message);
     }
   }
 
-  public send(data: any): Promise<void> {
+  public send(data: WebSocketMessage): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         console.warn('[WebSocketService] Cannot send, socket not open');
@@ -214,7 +214,7 @@ class WebSocketService {
 
       // Add message_id for deduplication
       const messageId = generateMessageId();
-      const messageWithId = {
+      const messageWithId: WebSocketMessage = {
         ...data,
         message_id: messageId,
       };
