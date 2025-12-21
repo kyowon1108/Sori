@@ -6,6 +6,7 @@ import { useElderly } from '@/hooks/useElderly';
 import { useCalls } from '@/hooks/useCalls';
 import { useStore } from '@/store/useStore';
 import TodaySummary from '@/components/Dashboard/TodaySummary';
+import UpcomingCalls from '@/components/Dashboard/UpcomingCalls';
 import ActionQueue from '@/components/Dashboard/ActionQueue';
 import EventTimeline from '@/components/Dashboard/EventTimeline';
 import { RiskBadge } from '@/components/Common/Badge';
@@ -127,14 +128,25 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 오늘의 통화 요약 */}
-      <TodaySummary
-        scheduled={todayStats.scheduled}
-        inProgress={todayStats.inProgress}
-        completed={todayStats.completed}
-        missed={todayStats.missed}
-        loading={isLoading}
-      />
+      {/* 오늘의 통화 요약 + 다음 예정 통화 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <TodaySummary
+            scheduled={todayStats.scheduled}
+            inProgress={todayStats.inProgress}
+            completed={todayStats.completed}
+            missed={todayStats.missed}
+            loading={isLoading}
+          />
+        </div>
+        <div className="lg:col-span-1">
+          <UpcomingCalls
+            elderlyList={elderlyList}
+            loading={isLoading}
+            maxItems={3}
+          />
+        </div>
+      </div>
 
       {/* 통계 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -10,9 +10,10 @@ import { Call } from '@/types/calls';
 interface CallsTabProps {
   calls: Call[];
   loading?: boolean;
+  elderlyId?: number;
 }
 
-export default function CallsTab({ calls, loading }: CallsTabProps) {
+export default function CallsTab({ calls, loading, elderlyId }: CallsTabProps) {
   if (loading) {
     return (
       <div className="divide-y divide-gray-200">
@@ -30,12 +31,16 @@ export default function CallsTab({ calls, loading }: CallsTabProps) {
       <div className="p-6">
         <EmptyState
           title="자동 통화 기록이 없습니다"
-          description="아직 진행된 자동 통화가 없습니다. 스케줄을 설정하면 자동으로 통화가 진행됩니다."
+          description="스케줄이 설정되어 있으면 지정된 시간에 자동으로 통화가 진행됩니다."
           icon={
             <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           }
+          action={elderlyId ? {
+            label: '스케줄 확인하기',
+            href: `/elderly/${elderlyId}?tab=schedule`,
+          } : undefined}
         />
       </div>
     );

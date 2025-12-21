@@ -300,6 +300,7 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
             <CallsTab
               calls={elderlyCalls}
               loading={callsLoading && !dataLoaded}
+              elderlyId={elderlyId}
             />
           )}
           {activeTab === 'devices' && (
