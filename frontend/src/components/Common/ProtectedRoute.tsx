@@ -17,18 +17,22 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const [mounted, setMounted] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
-  // Wait for client-side hydration
+  // Wait for client-side hydration and Zustand persist hydration
   useEffect(() => {
     setMounted(true);
-  }, []);
 
-  // Wait for Zustand persist to hydrate
-  useEffect(() => {
-    // Small delay to ensure persist middleware has hydrated
-    const timer = setTimeout(() => {
+    // Check if Zustand persist has already hydrated
+    if (useStore.persist.hasHydrated()) {
       setHydrated(true);
-    }, 100);
-    return () => clearTimeout(timer);
+    } else {
+      // Wait for Zustand persist to finish hydrating
+      const unsubscribe = useStore.persist.onFinishHydration(() => {
+        setHydrated(true);
+      });
+      return () => {
+        unsubscribe();
+      };
+    }
   }, []);
 
   // Redirect if not authenticated (after hydration)
