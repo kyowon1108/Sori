@@ -302,7 +302,7 @@ export default function DevicesTab({ elderlyId, elderlyName }: DevicesTabProps) 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 </span>
-                <span>연결 완료! 이제 정해진 시간에 자동으로 상담이 시작됩니다</span>
+                <span>연결 완료! 이제 정해진 시간에 자동으로 통화가 시작됩니다</span>
               </li>
             </ol>
           </div>

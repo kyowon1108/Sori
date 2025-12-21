@@ -2,8 +2,6 @@
 
 import Link from 'next/link';
 import clsx from 'clsx';
-import { Call } from '@/types/calls';
-import { CALL_STATUS } from '@/utils/constants';
 
 interface TodaySummaryProps {
   scheduled: number;
@@ -60,7 +58,7 @@ export default function TodaySummary({
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">오늘의 상담</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">오늘의 자동 통화</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="animate-pulse p-4 rounded-lg bg-gray-100">
@@ -75,7 +73,7 @@ export default function TodaySummary({
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">오늘의 상담</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">오늘의 자동 통화</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <Link

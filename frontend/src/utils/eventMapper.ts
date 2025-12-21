@@ -1,7 +1,7 @@
 import { Call, CallStatus, CallAnalysis } from '@/types/calls';
 import { Elderly } from '@/types/elderly';
-import { Event, EventType, EventSeverity, ActionNeededItem, ActionType } from '@/types/events';
-import { EVENT_TYPES, CALL_STATUS } from './constants';
+import { Event, EventType, EventSeverity, ActionNeededItem } from '@/types/events';
+import { EVENT_TYPES } from './constants';
 import { formatDistanceToNow, format, isToday, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
@@ -38,25 +38,25 @@ export function callToEvent(call: Call, elderlyName?: string): Event {
   switch (call.status) {
     case 'scheduled':
       description = call.scheduled_for
-        ? `${format(parseISO(call.scheduled_for), 'HH:mm', { locale: ko })}에 상담 예정`
-        : '상담이 예정되어 있습니다';
+        ? `${format(parseISO(call.scheduled_for), 'HH:mm', { locale: ko })}에 통화 예정`
+        : '통화가 예정되어 있습니다';
       break;
     case 'in_progress':
-      description = '현재 상담이 진행 중입니다';
+      description = '현재 통화가 진행 중입니다';
       break;
     case 'completed':
       description = call.duration
-        ? `${Math.floor(call.duration / 60)}분간 상담 완료`
-        : '상담이 완료되었습니다';
+        ? `${Math.floor(call.duration / 60)}분간 통화 완료`
+        : '통화가 완료되었습니다';
       break;
     case 'missed':
-      description = '예정된 상담에 응답하지 않았습니다';
+      description = '예정된 통화에 응답하지 않았습니다';
       break;
     case 'failed':
-      description = '상담 연결에 실패했습니다';
+      description = '통화 연결에 실패했습니다';
       break;
     case 'cancelled':
-      description = '상담이 취소되었습니다';
+      description = '통화가 취소되었습니다';
       break;
   }
 
@@ -125,8 +125,8 @@ export function elderlyToActionItems(elderly: Elderly): ActionNeededItem[] {
       description: `${elderly.name}님의 디바이스가 등록되지 않았습니다`,
       created_at: elderly.updated_at,
       cta: {
-        label: '등록 안내',
-        href: `/elderly/${elderly.id}`,
+        label: '기기 연결하기',
+        href: `/elderly/${elderly.id}?tab=devices`,
       },
     });
   }
@@ -158,8 +158,8 @@ export function elderlyToActionItems(elderly: Elderly): ActionNeededItem[] {
       priority: 'high',
       elderly_id: elderly.id,
       elderly_name: elderly.name,
-      title: '미응답 상담',
-      description: `${elderly.name}님이 ${elderly.missed_calls_count}건의 상담에 응답하지 않았습니다`,
+      title: '미응답 통화',
+      description: `${elderly.name}님이 ${elderly.missed_calls_count}건의 통화에 응답하지 않았습니다`,
       created_at: elderly.updated_at,
       cta: {
         label: '확인하기',
@@ -186,8 +186,8 @@ export function callToActionItem(call: Call, elderlyName?: string): ActionNeeded
       elderly_id: call.elderly_id,
       elderly_name: name,
       call_id: call.id,
-      title: '미응답 상담',
-      description: `${name}님이 ${format(parseISO(call.scheduled_for || call.created_at), 'M월 d일 HH:mm', { locale: ko })} 상담에 응답하지 않았습니다`,
+      title: '미응답 통화',
+      description: `${name}님이 ${format(parseISO(call.scheduled_for || call.created_at), 'M월 d일 HH:mm', { locale: ko })} 통화에 응답하지 않았습니다`,
       created_at: call.updated_at || call.created_at,
       cta: {
         label: '상세 보기',
@@ -205,8 +205,8 @@ export function callToActionItem(call: Call, elderlyName?: string): ActionNeeded
       elderly_id: call.elderly_id,
       elderly_name: name,
       call_id: call.id,
-      title: '상담 실패',
-      description: `${name}님과의 상담 연결에 실패했습니다`,
+      title: '통화 실패',
+      description: `${name}님과의 통화 연결에 실패했습니다`,
       created_at: call.updated_at || call.created_at,
       cta: {
         label: '상세 보기',
@@ -219,7 +219,7 @@ export function callToActionItem(call: Call, elderlyName?: string): ActionNeeded
 }
 
 // ===========================================
-// 오늘의 상담 필터
+// 오늘의 통화 필터
 // ===========================================
 export function filterTodayCalls(calls: Call[]): {
   scheduled: Call[];
@@ -227,8 +227,6 @@ export function filterTodayCalls(calls: Call[]): {
   completed: Call[];
   missed: Call[];
 } {
-  const today = new Date();
-
   const todayCalls = calls.filter((call) => {
     const callDate = call.scheduled_for || call.started_at || call.created_at;
     return isToday(parseISO(callDate));

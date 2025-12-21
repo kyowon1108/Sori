@@ -10,10 +10,8 @@ import ActionQueue from '@/components/Dashboard/ActionQueue';
 import EventTimeline from '@/components/Dashboard/EventTimeline';
 import { RiskBadge } from '@/components/Common/Badge';
 import { StatCardSkeleton } from '@/components/Common/Skeleton';
-import EmptyState from '@/components/Common/EmptyState';
 import { filterTodayCalls, callsToEvents, elderlyToActionItems, callToActionItem } from '@/utils/eventMapper';
-import { ActionNeededItem, Event } from '@/types/events';
-import { isToday, parseISO } from 'date-fns';
+import { ActionNeededItem } from '@/types/events';
 
 export default function DashboardPage() {
   const { elderlyList, fetchList: fetchElderlyList, elderlyLoading } = useElderly();
@@ -36,7 +34,7 @@ export default function DashboardPage() {
     loadData();
   }, [loadData]);
 
-  // 오늘의 상담 통계
+  // 오늘의 통화 통계
   const todayStats = useMemo(() => {
     const todayCalls = filterTodayCalls(callsList);
     return {
@@ -129,7 +127,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 오늘의 상담 요약 */}
+      {/* 오늘의 통화 요약 */}
       <TodaySummary
         scheduled={todayStats.scheduled}
         inProgress={todayStats.inProgress}
@@ -167,7 +165,7 @@ export default function DashboardPage() {
               href="/calls"
               className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
             >
-              <h3 className="text-sm font-medium text-gray-500">총 상담 수</h3>
+              <h3 className="text-sm font-medium text-gray-500">총 통화 수</h3>
               <p className="mt-2 text-3xl font-semibold text-gray-900">
                 {callsList.length}
               </p>

@@ -22,25 +22,25 @@ export default function NotificationsTab({ elderly }: NotificationsTabProps) {
     {
       id: 'missed_call',
       label: '미응답 알림',
-      description: '예정된 상담에 어르신이 응답하지 않으면 알림을 받습니다',
+      description: '예정된 통화에 어르신이 응답하지 않으면 알림을 받습니다',
       enabled: true,
     },
     {
       id: 'high_risk',
       label: '고위험 상황 알림',
-      description: '상담 분석 결과 위험 수준이 높으면 즉시 알림을 받습니다',
+      description: '통화 분석 결과 위험 수준이 높으면 즉시 알림을 받습니다',
       enabled: true,
     },
     {
       id: 'call_completed',
-      label: '상담 완료 알림',
-      description: '상담이 완료되면 요약과 함께 알림을 받습니다',
+      label: '통화 완료 알림',
+      description: '통화가 완료되면 요약과 함께 알림을 받습니다',
       enabled: false,
     },
     {
       id: 'daily_summary',
       label: '일일 요약 알림',
-      description: '매일 저녁 그날의 상담 내용을 요약해서 알림을 받습니다',
+      description: '매일 저녁 그날의 통화 내용을 요약해서 알림을 받습니다',
       enabled: false,
     },
   ]);

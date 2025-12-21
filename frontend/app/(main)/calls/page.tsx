@@ -82,7 +82,7 @@ export default function CallsListPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">상담 내역</h1>
+        <h1 className="text-2xl font-bold text-gray-900">통화 내역</h1>
       </div>
 
       {/* 필터 및 검색 */}

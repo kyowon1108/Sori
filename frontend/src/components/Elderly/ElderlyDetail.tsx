@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { useElderly } from '@/hooks/useElderly';
@@ -23,13 +23,31 @@ interface PairingDevice {
   last_used_at: string | null;
 }
 
+const validTabs: TabType[] = ['summary', 'schedule', 'calls', 'devices', 'notifications'];
+
 export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentElderly, elderlyLoading, fetchById, delete: deleteElderly } = useElderly();
-  const { callsList, startCall, fetchList: fetchCalls, callsLoading } = useCalls();
-  const [activeTab, setActiveTab] = useState<TabType>('summary');
+  const { callsList, fetchList: fetchCalls, callsLoading } = useCalls();
+
+  // Parse tab from URL query parameter
+  const tabFromUrl = searchParams.get('tab');
+  const initialTab = (tabFromUrl && validTabs.includes(tabFromUrl as TabType)) ? tabFromUrl as TabType : 'summary';
+
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [connectedDevice, setConnectedDevice] = useState<PairingDevice | null>(null);
+
+  // 페어링 상태 조회
+  const fetchPairingStatus = useCallback(async () => {
+    try {
+      const status = await elderlyService.getPairingStatus(elderlyId);
+      setConnectedDevice(status.paired_devices?.[0] || null);
+    } catch (error) {
+      console.error('Failed to fetch pairing status:', error);
+    }
+  }, [elderlyId]);
 
   // 데이터 로드
   const loadData = useCallback(async () => {
@@ -42,21 +60,11 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
     } finally {
       setDataLoaded(true);
     }
-  }, [elderlyId, fetchById, fetchCalls]);
+  }, [elderlyId, fetchById, fetchCalls, fetchPairingStatus]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  // 페어링 상태 조회
-  const fetchPairingStatus = async () => {
-    try {
-      const status = await elderlyService.getPairingStatus(elderlyId);
-      setConnectedDevice(status.paired_devices?.[0] || null);
-    } catch (error) {
-      console.error('Failed to fetch pairing status:', error);
-    }
-  };
 
   // 이 어르신의 통화만 필터
   const elderlyCalls = useMemo(
@@ -73,16 +81,6 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
       } catch {
         // Error is handled by the hook
       }
-    }
-  };
-
-  // 상담 시작 핸들러
-  const handleStartCall = async () => {
-    try {
-      const call = await startCall(elderlyId);
-      router.push(`/calls/${call.id}`);
-    } catch {
-      // Error is handled by the hook
     }
   };
 
@@ -120,7 +118,7 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
     },
     {
       id: 'calls',
-      label: '상담 내역',
+      label: '통화 내역',
       count: elderlyCalls.length,
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,11 +214,11 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
                 )}
                 {currentElderly.call_schedule.enabled ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full border border-blue-200">
-                    자동상담 ON
+                    자동 통화 ON
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full border border-gray-200">
-                    자동상담 OFF
+                    자동 통화 OFF
                   </span>
                 )}
               </div>
@@ -229,15 +227,6 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
 
           {/* 오른쪽: 액션 버튼 */}
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={handleStartCall}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
-              상담 시작
-            </button>
             <Link
               href={`/elderly/${elderlyId}/edit`}
               className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
@@ -302,7 +291,6 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
               elderly={currentElderly}
               recentCalls={elderlyCalls}
               connectedDevice={connectedDevice}
-              onStartCall={handleStartCall}
             />
           )}
           {activeTab === 'schedule' && (
@@ -312,7 +300,6 @@ export default function ElderlyDetail({ elderlyId }: ElderlyDetailProps) {
             <CallsTab
               calls={elderlyCalls}
               loading={callsLoading && !dataLoaded}
-              onStartCall={handleStartCall}
             />
           )}
           {activeTab === 'devices' && (

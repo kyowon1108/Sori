@@ -224,7 +224,7 @@ export default function ElderlyForm({ elderly, isEdit = false }: ElderlyFormProp
       {/* 스케줄 설정 섹션 */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">자동 상담 스케줄</h2>
+          <h2 className="text-lg font-semibold text-gray-900">자동 통화 스케줄</h2>
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
@@ -241,7 +241,7 @@ export default function ElderlyForm({ elderly, isEdit = false }: ElderlyFormProp
         {scheduleEnabled && (
           <div className="space-y-4">
             <p className="text-sm text-gray-500">
-              설정된 시간에 자동으로 AI 상담이 시작됩니다. 최대 5개까지 설정할 수 있습니다.
+              설정된 시간에 자동으로 AI 통화가 시작됩니다. 최대 5개까지 설정할 수 있습니다.
             </p>
 
             <div className="space-y-3">
@@ -291,7 +291,7 @@ export default function ElderlyForm({ elderly, isEdit = false }: ElderlyFormProp
 
         {!scheduleEnabled && (
           <p className="text-sm text-gray-500">
-            자동 상담이 비활성화되어 있습니다. 활성화하면 설정된 시간에 자동으로 상담이 시작됩니다.
+            자동 통화가 비활성화되어 있습니다. 활성화하면 설정된 시간에 자동으로 통화가 시작됩니다.
           </p>
         )}
       </div>

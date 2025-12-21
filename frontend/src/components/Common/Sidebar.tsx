@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useStore } from '@/store/useStore';
+import { UI_COPY } from '@/utils/constants';
 import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 
 const menuItems = [
   {
-    name: '대시보드',
+    name: UI_COPY.nav.dashboard,
     href: '/dashboard',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -17,7 +18,7 @@ const menuItems = [
     ),
   },
   {
-    name: '어르신 관리',
+    name: UI_COPY.nav.elderlyManagement,
     href: '/elderly',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -26,7 +27,7 @@ const menuItems = [
     ),
   },
   {
-    name: '상담 내역',
+    name: UI_COPY.nav.callHistory,
     href: '/calls',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -35,7 +36,7 @@ const menuItems = [
     ),
   },
   {
-    name: '알림센터',
+    name: UI_COPY.nav.alerts,
     href: '/alerts',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

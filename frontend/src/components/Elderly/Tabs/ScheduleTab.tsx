@@ -61,14 +61,14 @@ export default function ScheduleTab({ elderly }: ScheduleTabProps) {
           </div>
           <div>
             <p className="font-medium text-gray-900">
-              자동 상담{' '}
+              자동 통화{' '}
               <span className={schedule.enabled ? 'text-green-600' : 'text-gray-500'}>
                 {schedule.enabled ? '활성화됨' : '비활성화됨'}
               </span>
             </p>
             <p className="text-sm text-gray-500">
               {schedule.enabled
-                ? `매일 ${schedule.times.map(formatScheduleTime).join(', ')}에 자동으로 상담이 시작됩니다`
+                ? `매일 ${schedule.times.map(formatScheduleTime).join(', ')}에 자동으로 통화가 시작됩니다`
                 : '스케줄이 설정되지 않았습니다. 활성화하면 정해진 시간에 자동으로 어르신께 전화가 갑니다.'}
             </p>
           </div>
@@ -84,7 +84,7 @@ export default function ScheduleTab({ elderly }: ScheduleTabProps) {
       {/* 스케줄 시간 목록 */}
       {schedule.enabled && (
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">일일 상담 시간</h4>
+          <h4 className="text-sm font-medium text-gray-700 mb-3">일일 통화 시간</h4>
           <div className="flex flex-wrap gap-2">
             {schedule.times.map((time, i) => (
               <div
@@ -104,7 +104,7 @@ export default function ScheduleTab({ elderly }: ScheduleTabProps) {
             ))}
           </div>
           <p className="mt-3 text-sm text-gray-500">
-            총 {schedule.times.length}회의 상담이 매일 진행됩니다
+            총 {schedule.times.length}회의 통화가 매일 진행됩니다
           </p>
         </div>
       )}
@@ -112,7 +112,7 @@ export default function ScheduleTab({ elderly }: ScheduleTabProps) {
       {/* 다음 7일 미리보기 */}
       {schedule.enabled && (
         <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-3">다음 7일 예정된 상담</h4>
+          <h4 className="text-sm font-medium text-gray-700 mb-3">다음 7일 예정된 통화</h4>
           <div className="grid grid-cols-7 gap-2">
             {next7Days.map((day, i) => {
               const isToday = isSameDay(day.date, new Date());
@@ -163,7 +163,7 @@ export default function ScheduleTab({ elderly }: ScheduleTabProps) {
             })}
           </div>
           <p className="mt-3 text-sm text-gray-500">
-            다음 7일간 총 {next7Days.length * schedule.times.length}건의 상담이 예정되어 있습니다
+            다음 7일간 총 {next7Days.length * schedule.times.length}건의 통화가 예정되어 있습니다
           </p>
         </div>
       )}
@@ -188,9 +188,9 @@ export default function ScheduleTab({ elderly }: ScheduleTabProps) {
               </svg>
             </div>
             <div>
-              <h4 className="font-medium text-orange-800">자동 상담이 비활성화되어 있습니다</h4>
+              <h4 className="font-medium text-orange-800">자동 통화가 비활성화되어 있습니다</h4>
               <p className="text-sm text-orange-700 mt-1">
-                자동 상담을 활성화하면 정해진 시간에 SORI가 자동으로 어르신께 전화를 걸어 안부를 확인합니다.
+                자동 통화를 활성화하면 정해진 시간에 SORI가 자동으로 어르신께 전화를 걸어 안부를 확인합니다.
               </p>
               <Link
                 href={`/elderly/${elderly.id}/edit`}
