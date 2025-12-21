@@ -48,9 +48,8 @@ struct ElderlyHomeView: View {
                     ElderlyCallView(callId: callId, isPresented: $showCallView)
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: NotificationNames.incomingCall)) { notification in
-                handleIncomingCall(notification)
-            }
+            // Navigation handled via pendingCallId binding from ContentView
+            // ContentView listens to navigateToCall and sets pendingCallId
             .onChange(of: pendingCallId) {
                 if let callId = pendingCallId {
                     pendingCallId = nil
@@ -167,12 +166,6 @@ struct ElderlyHomeView: View {
     }
 
     // MARK: - Navigation
-
-    private func handleIncomingCall(_ notification: NotificationCenter.Publisher.Output) {
-        if let callId = notification.userInfo?["call_id"] as? Int {
-            navigateToCall(callId)
-        }
-    }
 
     private func navigateToCall(_ callId: Int) {
         currentCallId = callId

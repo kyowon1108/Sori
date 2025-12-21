@@ -76,7 +76,8 @@ final class KeychainService {
 
     // MARK: - Pairing Data Management
 
-    /// Save all pairing data at once
+    /// Save all pairing data atomically.
+    /// If any save operation fails, all pairing data is cleared to prevent inconsistent state.
     func savePairingData(token: String, elderlyId: Int, deviceId: Int, expiresIn: Int) -> Bool {
         let expiresAt = Date().addingTimeInterval(TimeInterval(expiresIn))
 
@@ -85,7 +86,16 @@ final class KeychainService {
         let deviceSaved = saveInt(deviceId, forKey: KeychainKeys.deviceId)
         let expirySaved = saveDate(expiresAt, forKey: KeychainKeys.tokenExpiresAt)
 
-        return tokenSaved && elderlySaved && deviceSaved && expirySaved
+        let allSaved = tokenSaved && elderlySaved && deviceSaved && expirySaved
+
+        if !allSaved {
+            // Atomic rollback: if any save failed, clear all pairing data
+            print("[Keychain] Pairing save failed - rolling back all data")
+            clearPairingData()
+            return false
+        }
+
+        return true
     }
 
     /// Clear all pairing data
@@ -105,12 +115,33 @@ final class KeychainService {
         return Date().addingTimeInterval(3600) > expiresAt
     }
 
-    /// Check if device is paired and token is valid
+    /// Check if device is paired and token is valid.
+    /// Requires ALL four pairing keys to be present and token not expired.
+    /// If inconsistent state detected, clears all data and returns false.
     func hasValidPairingToken() -> Bool {
-        guard retrieve(forKey: KeychainKeys.deviceAccessToken) != nil else {
+        let hasToken = retrieve(forKey: KeychainKeys.deviceAccessToken) != nil
+        let hasElderlyId = retrieveInt(forKey: KeychainKeys.elderlyId) != nil
+        let hasDeviceId = retrieveInt(forKey: KeychainKeys.deviceId) != nil
+        let hasExpiry = retrieveDate(forKey: KeychainKeys.tokenExpiresAt) != nil
+
+        // All four keys must be present
+        guard hasToken && hasElderlyId && hasDeviceId && hasExpiry else {
+            // Inconsistent state - some keys present, some missing
+            if hasToken || hasElderlyId || hasDeviceId || hasExpiry {
+                print("[Keychain] Inconsistent pairing state detected - clearing data")
+                clearPairingData()
+            }
             return false
         }
-        return !isTokenExpired()
+
+        // Check expiration
+        if isTokenExpired() {
+            print("[Keychain] Token expired - clearing pairing data")
+            clearPairingData()
+            return false
+        }
+
+        return true
     }
 
     // MARK: - FCM Token

@@ -14,7 +14,6 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
 
     private var webSocket: URLSessionWebSocketTask?
     private var currentCallId: Int?
-    private var pingTimer: Timer?
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = 3
     private var currentToken: String?
@@ -75,8 +74,9 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
         // Start receiving messages
         receiveMessages(onMessage: onMessage, onError: onError)
 
-        // Start ping timer
-        startPingTimer()
+        // NOTE: Client ping timer removed per protocol design.
+        // Server sends ping every HEARTBEAT_INTERVAL and iOS responds with pong.
+        // This avoids redundant traffic and protocol confusion.
     }
 
     // MARK: - Message Receiving
@@ -193,7 +193,6 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
         print("[WebSocket] Connection error: \(error.localizedDescription)")
 
         isConnected = false
-        stopPingTimer()
 
         DispatchQueue.main.async {
             self.connectionStatusPublisher.send(false)
@@ -210,36 +209,9 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
         }
     }
 
-    // MARK: - Ping/Pong
+    // MARK: - Pong Response
 
-    private func startPingTimer() {
-        stopPingTimer()
-
-        DispatchQueue.main.async {
-            self.pingTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-                self?.sendPing()
-            }
-        }
-    }
-
-    private func stopPingTimer() {
-        pingTimer?.invalidate()
-        pingTimer = nil
-    }
-
-    private func sendPing() {
-        let pingMessage = ["type": "ping"]
-        if let data = try? JSONEncoder().encode(pingMessage),
-           let jsonString = String(data: data, encoding: .utf8) {
-            webSocket?.send(.string(jsonString)) { [weak self] error in
-                if let error = error {
-                    print("[WebSocket] Ping failed: \(error.localizedDescription)")
-                    self?.handlePingFailure()
-                }
-            }
-        }
-    }
-
+    /// Respond to server ping with pong
     private func sendPong() {
         let pongMessage = ["type": "pong"]
         if let data = try? JSONEncoder().encode(pongMessage),
@@ -249,14 +221,6 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
                     print("[WebSocket] Pong failed: \(error.localizedDescription)")
                 }
             }
-        }
-    }
-
-    private func handlePingFailure() {
-        // Connection might be dead, trigger reconnect
-        if isConnected {
-            isConnected = false
-            connectionStatusPublisher.send(false)
         }
     }
 
@@ -338,7 +302,6 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
     // MARK: - Disconnect
 
     func disconnect() {
-        stopPingTimer()
         webSocket?.cancel(with: .goingAway, reason: nil)
         webSocket = nil
         currentCallId = nil
@@ -377,7 +340,6 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
     ) {
         print("[WebSocket] Closed with code: \(closeCode.rawValue)")
         isConnected = false
-        stopPingTimer()
 
         DispatchQueue.main.async {
             self.connectionStatusPublisher.send(false)
