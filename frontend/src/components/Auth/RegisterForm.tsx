@@ -31,8 +31,18 @@ export default function RegisterForm() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('비밀번호는 6자 이상이어야 합니다.');
+    if (password.length < 8) {
+      setError('비밀번호는 8자 이상이어야 합니다.');
+      return;
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      setError('비밀번호에 대문자가 1개 이상 포함되어야 합니다.');
+      return;
+    }
+
+    if (!/[0-9]/.test(password)) {
+      setError('비밀번호에 숫자가 1개 이상 포함되어야 합니다.');
       return;
     }
 
@@ -60,9 +70,16 @@ export default function RegisterForm() {
   // 비밀번호 강도 체크
   const getPasswordStrength = () => {
     if (!password) return null;
-    if (password.length < 6) return { level: 'weak', text: '약함', color: 'bg-red-500' };
-    if (password.length < 10) return { level: 'medium', text: '보통', color: 'bg-yellow-500' };
-    return { level: 'strong', text: '강함', color: 'bg-green-500' };
+
+    const hasMinLength = password.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const score = [hasMinLength, hasUpperCase, hasNumber].filter(Boolean).length;
+
+    if (score === 0) return { level: 'weak', text: '약함', color: 'bg-red-500', width: '10%' };
+    if (score === 1) return { level: 'weak', text: '약함', color: 'bg-red-500', width: '33%' };
+    if (score === 2) return { level: 'medium', text: '보통', color: 'bg-yellow-500', width: '66%' };
+    return { level: 'strong', text: '강함', color: 'bg-green-500', width: '100%' };
   };
 
   const passwordStrength = getPasswordStrength();
@@ -150,9 +167,12 @@ export default function RegisterForm() {
 
             {/* 비밀번호 */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                비밀번호
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  비밀번호
+                </label>
+                <span className="text-xs text-gray-500">8자 이상, 대문자+숫자 포함</span>
+              </div>
               <div className="relative">
                 <input
                   id="password"
@@ -162,7 +182,7 @@ export default function RegisterForm() {
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); clearError(); }}
                   className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                  placeholder="6자 이상 입력"
+                  placeholder="비밀번호 입력"
                 />
                 <button
                   type="button"
@@ -187,9 +207,7 @@ export default function RegisterForm() {
                   <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                     <div
                       className={`h-full ${passwordStrength.color} transition-all`}
-                      style={{
-                        width: passwordStrength.level === 'weak' ? '33%' : passwordStrength.level === 'medium' ? '66%' : '100%'
-                      }}
+                      style={{ width: passwordStrength.width }}
                     />
                   </div>
                   <span className="text-xs text-gray-500">{passwordStrength.text}</span>
