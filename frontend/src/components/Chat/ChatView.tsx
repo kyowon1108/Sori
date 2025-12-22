@@ -41,8 +41,8 @@ const MAX_POLLS = 12; // 최대 12회 (60초)
 export default function ChatView({ callId }: ChatViewProps) {
   const router = useRouter();
   const { currentCall, clearChatMessages, chatMessages } = useStore();
-  const { sendMessage, disconnect, status: wsStatus } = useWebSocket(callId);
-  const { fetchById, endCall, callsLoading } = useCalls();
+  const { sendMessage, status: wsStatus } = useWebSocket(callId);
+  const { fetchById } = useCalls();
   const { fetchById: fetchElderly, currentElderly } = useElderly();
 
   // 탭 상태
@@ -162,15 +162,6 @@ export default function ChatView({ callId }: ChatViewProps) {
     setHighlightMessageIndex(messageIndex);
   }, []);
 
-  const handleEndCall = async () => {
-    try {
-      disconnect();
-      await endCall(callId);
-    } catch {
-      // Error is handled by the hook
-    }
-  };
-
   const handleSendMessage = (content: string) => {
     sendMessage(content);
     useStore.getState().addChatMessage({
@@ -246,7 +237,7 @@ export default function ChatView({ callId }: ChatViewProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* WebSocket 상태 */}
+            {/* WebSocket 상태 (진행 중인 통화 모니터링용) */}
             {isCallActive && (
               <div className="flex items-center gap-2 text-sm">
                 <span
@@ -256,20 +247,9 @@ export default function ChatView({ callId }: ChatViewProps) {
                   )}
                 />
                 <span className="text-gray-500">
-                  {wsStatus === 'connected' ? '연결됨' : '연결 중...'}
+                  {wsStatus === 'connected' ? '실시간 연결됨' : '연결 중...'}
                 </span>
               </div>
-            )}
-
-            {/* 통화 종료 버튼 */}
-            {isCallActive && (
-              <button
-                onClick={handleEndCall}
-                disabled={callsLoading}
-                className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
-                {callsLoading ? '종료 중...' : '통화 종료'}
-              </button>
             )}
 
             {/* 어르신 프로필 링크 */}
