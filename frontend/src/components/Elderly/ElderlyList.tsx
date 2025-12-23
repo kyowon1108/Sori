@@ -32,7 +32,7 @@ export default function ElderlyList() {
     fetchList().finally(() => setDataLoaded(true));
   }, [fetchList]);
 
-  // 필터링 및 정렬된 목록
+  // 필터링된 목록
   const filteredList = useMemo(() => {
     let filtered = elderlyList;
 
@@ -63,16 +63,6 @@ export default function ElderlyList() {
     if (filterMissed === 'with') {
       filtered = filtered.filter((e) => e.missed_calls_count && e.missed_calls_count > 0);
     }
-
-    // 정렬: 고위험을 상단으로 (high → medium → low)
-    const riskOrder: Record<RiskLevel, number> = { high: 0, medium: 1, low: 2 };
-    filtered.sort((a, b) => {
-      const orderA = riskOrder[a.risk_level];
-      const orderB = riskOrder[b.risk_level];
-      if (orderA !== orderB) return orderA - orderB;
-      // 같은 위험도면 이름순
-      return a.name.localeCompare(b.name, 'ko');
-    });
 
     return filtered;
   }, [elderlyList, searchQuery, filterRisk, filterDevice, filterMissed]);

@@ -36,30 +36,21 @@ export default function ElderlyCard({ elderly }: ElderlyCardProps) {
   const hasDevice = !!elderly.device;
   const hasMissedCalls = elderly.missed_calls_count && elderly.missed_calls_count > 0;
 
-  const isHighRisk = elderly.risk_level === 'high';
-
   return (
     <Link
       href={`/elderly/${elderly.id}`}
       className={clsx(
-        'block rounded-lg shadow-sm border p-4 hover:shadow-md transition-all',
-        isHighRisk
-          ? 'bg-red-50 border-l-4 border-l-red-600 border-t border-r border-b border-red-200 hover:border-red-300 hover:shadow-lg'
-          : 'bg-white border-gray-200 hover:border-gray-300'
+        'block bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-all',
+        elderly.risk_level === 'high'
+          ? 'border-red-200 hover:border-red-300'
+          : 'border-gray-200 hover:border-gray-300'
       )}
     >
       {/* 헤더: 이름 + 위험도 */}
       <div className="flex justify-between items-start mb-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            {isHighRisk && (
-              <svg className="w-5 h-5 text-red-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            )}
-            <h3 className="text-lg font-semibold text-gray-900 truncate">{elderly.name}</h3>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+        <div className="min-w-0">
+          <h3 className="text-lg font-semibold text-gray-900 truncate">{elderly.name}</h3>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
             {elderly.age && <span>{elderly.age}세</span>}
             {elderly.phone && (
               <>
@@ -69,7 +60,7 @@ export default function ElderlyCard({ elderly }: ElderlyCardProps) {
             )}
           </div>
         </div>
-        <RiskBadge level={elderly.risk_level} size={isHighRisk ? 'lg' : 'md'} />
+        <RiskBadge level={elderly.risk_level} />
       </div>
 
       {/* 상태 표시 */}
