@@ -5,6 +5,8 @@ import clsx from 'clsx';
 import { ActionNeededItem, ActionType } from '@/types/events';
 import { EMPTY_STATES } from '@/utils/constants';
 import EmptyState from '@/components/Common/EmptyState';
+import { formatDistanceToNow, parseISO, format } from 'date-fns';
+import { ko } from 'date-fns/locale';
 
 interface ActionQueueProps {
   items: ActionNeededItem[];
@@ -73,14 +75,37 @@ const PRIORITY_ORDER: Record<string, number> = {
   low: 3,
 };
 
+// 우선순위 표시 배지 설정
+const PRIORITY_BADGES: Record<string, { icon: string; label: string; color: string; bgColor: string }> = {
+  critical: { icon: '⚠️', label: '긴급', color: 'text-red-700', bgColor: 'bg-red-100' },
+  high: { icon: '⏰', label: '주의', color: 'text-orange-700', bgColor: 'bg-orange-100' },
+  medium: { icon: '📌', label: '확인', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+  low: { icon: '✅', label: '점검', color: 'text-gray-700', bgColor: 'bg-gray-100' },
+};
+
 export default function ActionQueue({
   items,
   loading = false,
   maxItems = 5,
 }: ActionQueueProps) {
-  // 우선순위로 정렬
+  // 우선순위 정렬 규칙:
+  // 1차: priority (critical → high → medium → low)
+  // 2차: created_at (오래된 것 우선 - 방치 시간이 긴 항목이 더 긴급)
+  // 3차: elderly_name (한글 가나다순)
   const sortedItems = [...items]
-    .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
+    .sort((a, b) => {
+      // 1차: Priority
+      const priorityDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+      if (priorityDiff !== 0) return priorityDiff;
+
+      // 2차: Created time (older first)
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+
+      // 3차: Name
+      return a.elderly_name.localeCompare(b.elderly_name, 'ko');
+    })
     .slice(0, maxItems);
 
   if (loading) {
@@ -139,32 +164,78 @@ export default function ActionQueue({
         <div className="space-y-3">
           {sortedItems.map((item) => {
             const config = ACTION_TYPE_CONFIG[item.type];
+            const priorityBadge = PRIORITY_BADGES[item.priority];
+            const createdAt = parseISO(item.created_at);
+            const relativeTime = formatDistanceToNow(createdAt, { addSuffix: true, locale: ko });
+            const absoluteTime = format(createdAt, 'yyyy년 M월 d일 HH:mm', { locale: ko });
+
             return (
-              <Link
+              <div
                 key={item.id}
-                href={item.cta.href}
                 className={clsx(
-                  'flex items-center gap-4 p-4 rounded-lg border transition-all hover:shadow-md',
+                  'flex items-start gap-4 p-4 rounded-lg border transition-all',
                   item.priority === 'critical'
-                    ? 'bg-red-50 border-red-200 hover:border-red-300'
+                    ? 'bg-red-50 border-red-200 border-l-4 border-l-red-600'
                     : item.priority === 'high'
-                    ? 'bg-orange-50 border-orange-200 hover:border-orange-300'
-                    : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                    ? 'bg-orange-50 border-orange-200'
+                    : 'bg-gray-50 border-gray-200'
                 )}
               >
+                {/* 아이콘 */}
                 <div className={clsx('flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center', config.bgColor, config.color)}>
                   {config.icon}
                 </div>
+
+                {/* 내용 */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {item.elderly_name} - {item.title}
+                  {/* 헤더: 우선순위 배지 + 이름/제목 */}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className={clsx(
+                        'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0',
+                        priorityBadge.bgColor,
+                        priorityBadge.color
+                      )}
+                      aria-label={`우선순위: ${priorityBadge.label}`}
+                    >
+                      <span aria-hidden="true">{priorityBadge.icon}</span>
+                      {priorityBadge.label}
+                    </span>
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {item.elderly_name} - {item.title}
+                    </p>
+                  </div>
+
+                  {/* 설명 */}
+                  <p className="text-sm text-gray-500 mb-2">{item.description}</p>
+
+                  {/* 타임스탬프 */}
+                  <p
+                    className="text-xs text-gray-400"
+                    title={absoluteTime}
+                    aria-label={`발생 시간: ${absoluteTime}`}
+                  >
+                    {relativeTime}
                   </p>
-                  <p className="text-sm text-gray-500 truncate">{item.description}</p>
                 </div>
-                <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
+
+                {/* CTA 버튼 */}
+                <Link
+                  href={item.cta.href}
+                  className={clsx(
+                    'flex-shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center',
+                    item.cta.variant === 'danger'
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : item.cta.variant === 'secondary'
+                      ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      : 'bg-blue-600 text-white hover:bg-blue-700',
+                    'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  )}
+                  aria-label={`${item.elderly_name} - ${item.title}: ${item.cta.label}`}
+                >
+                  {item.cta.label}
+                </Link>
+              </div>
             );
           })}
 
