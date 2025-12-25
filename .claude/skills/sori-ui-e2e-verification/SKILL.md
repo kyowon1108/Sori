@@ -6,6 +6,9 @@ description: Verifies SORI frontend UI behavior and assets with Playwright E2E a
 - Ensure UI assets load without errors and user journeys remain valid.
 - Provide repeatable E2E + visual regression workflows for dashboard and elderly flows.
 
+# Preconditions
+- Playwright 실행 환경과 프론트엔드 의존성이 준비되어 있어야 한다.
+
 # Applicability
 - Apply when touching `frontend/app/**`, `frontend/src/components/**`, `frontend/public/**`, or layout/styling changes.
 
@@ -20,6 +23,10 @@ description: Verifies SORI frontend UI behavior and assets with Playwright E2E a
 - `cd frontend && npm run build`
 - `cd frontend && npm run e2e`
 - `cd frontend && npm run e2e -- --update-snapshots`
+
+# Expected outputs
+- 실행 커맨드 결과 요약.
+- 콘솔/네트워크 오류 요약과 증빙.
 
 # Workflow
 1) Run lint and E2E tests.

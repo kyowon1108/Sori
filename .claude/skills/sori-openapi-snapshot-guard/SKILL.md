@@ -6,6 +6,9 @@ description: Guards OpenAPI snapshot drift and WebSocket contract checks for SOR
 - OpenAPI 스냅샷 드리프트와 WS 계약 체크를 관리한다.
 - 기준 파일: `contracts/openapi.snapshot.json`, `contracts/ws.messages.md` (존재/생성 기대).
 
+# Preconditions
+- API 변경 범위와 기대 계약이 정리되어 있어야 한다.
+
 # Inputs (필수/선택)
 - 필수: API 스키마 변경 내역, 기대 응답/요청 구조.
 - 선택: CI 워크플로 변경 필요 여부.
@@ -18,6 +21,10 @@ description: Guards OpenAPI snapshot drift and WebSocket contract checks for SOR
 # Commands
 - `bash scripts/export-openapi.sh`
 - `cd backend && pytest tests/test_ws_contract.py -v`
+
+# Expected outputs
+- 스냅샷 드리프트 여부와 변경 요약.
+- WS 계약 테스트 결과와 로그.
 
 # DoD / AC
 - 스냅샷 드리프트가 의도된 변경과 일치한다.

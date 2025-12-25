@@ -6,6 +6,9 @@ description: Handles SORI FastAPI/WebSocket/Celery backend changes with minimal 
 - `backend/**` 범위의 FastAPI 라우트/서비스/모델/Celery 작업 변경.
 - WebSocket 동작은 `backend/app/routes/websocket.py`를 기준으로 유지한다.
 
+# Preconditions
+- 변경 대상 라우트/서비스 범위가 정리되어 있어야 한다.
+
 # Inputs (필수/선택)
 - 필수: 변경 대상 엔드포인트/라우트, 기대 동작.
 - 선택: DB 스키마/모델 영향, 호출 흐름(REST/WS) 요약.
@@ -17,6 +20,10 @@ description: Handles SORI FastAPI/WebSocket/Celery backend changes with minimal 
 
 # Commands
 - `cd backend && pytest`
+
+# Expected outputs
+- 변경 요약과 WS 계약 영향 여부.
+- 실행 커맨드 결과.
 
 # DoD / AC
 - 주요 테스트가 통과한다.

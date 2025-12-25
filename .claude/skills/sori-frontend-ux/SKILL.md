@@ -6,6 +6,9 @@ description: Handles SORI Next.js UI/UX changes for dashboard and elderly flows 
 - `frontend/**` 범위의 UI/UX 변경 (페이지, 레이아웃, 컴포넌트, 상태/API 연동).
 - 주요 대상: `frontend/app/(main)/dashboard/page.tsx`, `frontend/src/components/**`, `frontend/src/services/api.ts`.
 
+# Preconditions
+- 변경 대상 화면과 기대 동작이 합의되어 있어야 한다.
+
 # Inputs (필수/선택)
 - 필수: 변경 대상 화면/경로, 기대 동작.
 - 선택: 디자인 레퍼런스, 스크린샷, 관련 API 변경 요약.
@@ -20,6 +23,10 @@ description: Handles SORI Next.js UI/UX changes for dashboard and elderly flows 
 - `cd frontend && npm run build`
 - `cd frontend && npm run e2e`
 - `cd frontend && npm run e2e -- --update-snapshots`
+
+# Expected outputs
+- 변경된 화면 요약과 근거.
+- 실행한 검증 커맨드 결과.
 
 # DoD / AC
 - 변경된 화면이 기대 동작을 충족한다.

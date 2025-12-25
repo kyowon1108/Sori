@@ -6,6 +6,9 @@ description: Generates implementation docs from current code with path-based cit
 - 코드 기반 구현 문서를 backend/frontend/ios 범위로 생성한다.
 - 모든 설명은 실제 파일 경로 인용을 포함한다.
 
+# Preconditions
+- 문서 대상 영역과 범위가 확정되어 있어야 한다.
+
 # Inputs (필수/선택)
 - 필수: 문서 대상 영역(backend/frontend/ios).
 - 선택: 원하는 문서 깊이, 포함할 흐름/기능.
@@ -20,6 +23,10 @@ description: Generates implementation docs from current code with path-based cit
 - `rg --files -g 'frontend/app/**'`
 - `rg -n "WebSocket" backend/app/routes/websocket.py`
 - `ls -la docs`
+
+# Expected outputs
+- 경로 인용이 포함된 문서 파일 목록.
+- 문서별 핵심 요약.
 
 # DoD / AC
 - 모든 문서에 파일 경로 인용이 포함된다.
