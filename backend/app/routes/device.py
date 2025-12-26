@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
+from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -85,14 +86,13 @@ async def get_pending_call(
     db: Session = Depends(get_db),
 ):
     """
-    Get the next pending scheduled call for this elderly.
+    Get the next pending call for this elderly.
 
-    Returns the nearest scheduled call that:
-    - Belongs to this elderly
-    - Has status 'scheduled'
-    - Is scheduled within the next 60 minutes or is overdue (but not too old)
+    Returns either:
+    1. Manual call in progress (caregiver-initiated)
+    2. Scheduled auto call within the time window
 
-    Used by iOS app to poll for auto-call without FCM.
+    Used by iOS app to poll for calls without FCM push.
     """
     now = datetime.utcnow()
 
@@ -100,13 +100,30 @@ async def get_pending_call(
     time_window_start = now - timedelta(minutes=5)
     time_window_end = now + timedelta(minutes=60)
 
+    # Query for pending calls:
+    # - Manual calls that are in_progress
+    # - OR Auto scheduled calls within time window
     pending_call = db.query(Call).filter(
         Call.elderly_id == elderly_id,
-        Call.status == "scheduled",
-        Call.trigger_type == "auto",
-        Call.scheduled_for >= time_window_start,
-        Call.scheduled_for <= time_window_end,
-    ).order_by(Call.scheduled_for.asc()).first()
+        or_(
+            # Manual in-progress calls (caregiver-initiated)
+            and_(
+                Call.call_type == "manual",
+                Call.status == "in_progress"
+            ),
+            # Auto scheduled calls within time window
+            and_(
+                Call.trigger_type == "auto",
+                Call.status == "scheduled",
+                Call.scheduled_for >= time_window_start,
+                Call.scheduled_for <= time_window_end
+            )
+        )
+    ).order_by(
+        # Prioritize in_progress manual calls, then by scheduled time
+        Call.status.desc(),
+        Call.scheduled_for.asc()
+    ).first()
 
     if not pending_call:
         # Return success with null data (no pending call)
