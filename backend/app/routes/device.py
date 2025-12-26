@@ -4,6 +4,7 @@ These routes use device_access_token authentication (scope=elderly).
 """
 from datetime import datetime, timedelta
 from typing import Optional
+import sys
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -13,11 +14,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.security import verify_token
+from app.core.logging import get_logger
 from app.models.call import Call
 from app.models.elderly_device import ElderlyDevice
 
 router = APIRouter()
 security = HTTPBearer()
+logger = get_logger(__name__)
 
 
 # MARK: - Response Models
@@ -124,6 +127,28 @@ async def get_pending_call(
         Call.status.desc(),
         Call.scheduled_for.asc()
     ).first()
+
+    # DEBUG: Log query result
+    print(f"[DEBUG] ===== [PENDING-CALL] elderly_id={elderly_id} =====", flush=True)
+    sys.stdout.flush()
+    print(f"[DEBUG] Query result: found={pending_call is not None}", flush=True)
+    sys.stdout.flush()
+    if pending_call:
+        print(f"[DEBUG]   ✓ Call ID: {pending_call.id}", flush=True)
+        print(f"[DEBUG]   ✓ Status: {pending_call.status}", flush=True)
+        print(f"[DEBUG]   ✓ Call Type: {pending_call.call_type}", flush=True)
+        print(f"[DEBUG]   ✓ Trigger Type: {pending_call.trigger_type}", flush=True)
+        sys.stdout.flush()
+    else:
+        # Show all calls for debugging
+        all_calls = db.query(Call).filter(Call.elderly_id == elderly_id).all()
+        print(f"[DEBUG]   ✗ No pending call found", flush=True)
+        print(f"[DEBUG]   Total calls for elderly_id={elderly_id}: {len(all_calls)}", flush=True)
+        for c in all_calls[:5]:
+            print(f"[DEBUG]     - Call {c.id}: status={c.status}, type={c.call_type}/{c.trigger_type}", flush=True)
+        sys.stdout.flush()
+    print(f"[DEBUG] {'=' * 60}", flush=True)
+    sys.stdout.flush()
 
     if not pending_call:
         # Return success with null data (no pending call)

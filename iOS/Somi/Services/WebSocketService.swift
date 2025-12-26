@@ -169,6 +169,18 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
                 }
             }
 
+        case "ended":
+            // Call ended (possibly auto-ended by AI)
+            print("[WebSocket] Call ended, auto_ended: \(wsMessage.auto_ended ?? false)")
+            DispatchQueue.main.async {
+                // Notify that call has ended
+                NotificationCenter.default.post(
+                    name: Notification.Name("callEnded"),
+                    object: nil,
+                    userInfo: ["auto_ended": wsMessage.auto_ended ?? false]
+                )
+            }
+
         case "error":
             print("[WebSocket] Server error: \(wsMessage.content ?? "unknown")")
 
@@ -296,6 +308,30 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
                     print("[WebSocket] Send failed: \(error.localizedDescription)")
                 }
             }
+        }
+    }
+
+    /// Send end_call message to notify server that call is ending
+    func sendEndCall(completion: (() -> Void)? = nil) {
+        let message = WSMessage(
+            type: "end_call",
+            content: nil,
+            role: nil,
+            is_streaming: nil
+        )
+
+        if let data = try? JSONEncoder().encode(message),
+           let jsonString = String(data: data, encoding: .utf8) {
+            webSocket?.send(.string(jsonString)) { error in
+                if let error = error {
+                    print("[WebSocket] end_call send failed: \(error.localizedDescription)")
+                } else {
+                    print("[WebSocket] end_call sent successfully")
+                }
+                completion?()
+            }
+        } else {
+            completion?()
         }
     }
 

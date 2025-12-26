@@ -119,6 +119,31 @@ final class VoiceCallViewModel: ObservableObject {
                 self?.handleError(error)
             }
             .store(in: &cancellables)
+
+        // Call ended notification (auto-ended by AI)
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name("callEnded"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            let autoEnded = notification.userInfo?["auto_ended"] as? Bool ?? false
+            print("[VoiceCall] Received callEnded notification, auto_ended: \(autoEnded)")
+
+            if autoEnded {
+                // AI detected end intent, gracefully end call
+                self.stopListening()
+                self.ttsService.stop()
+                self.durationTimer?.invalidate()
+                self.durationTimer = nil
+                self.callState = .ended
+
+                // Disconnect after brief delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.webSocketService.disconnect()
+                }
+            }
+        }
     }
 
     private func checkPermissions() {
@@ -167,17 +192,20 @@ final class VoiceCallViewModel: ObservableObject {
         stopListening()
         ttsService.stop()
 
-        // Send end_call message to server
-        sendEndCallMessage()
-
-        // Disconnect WebSocket
-        webSocketService.disconnect()
-
         // Stop timer
         durationTimer?.invalidate()
         durationTimer = nil
 
         callState = .ended
+
+        // Send end_call message to server, then disconnect
+        webSocketService.sendEndCall { [weak self] in
+            // Disconnect after end_call message is sent
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self?.webSocketService.disconnect()
+                print("[VoiceCall] Disconnected after end_call")
+            }
+        }
     }
 
     /// Toggle mute state
@@ -430,11 +458,8 @@ final class VoiceCallViewModel: ObservableObject {
     }
 
     private func sendEndCallMessage() {
-        let endMessage = ["type": "end_call"]
-        if let data = try? JSONEncoder().encode(endMessage),
-           let jsonString = String(data: data, encoding: .utf8) {
-            // Access the internal send method would require refactoring WebSocketService
-            // For now, we just disconnect
+        webSocketService.sendEndCall {
+            print("[VoiceCall] end_call message sent to server")
         }
     }
 

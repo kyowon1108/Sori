@@ -222,6 +222,60 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
                 "created_at": msg.created_at.isoformat(),
             })
 
+        # Get elderly context for personalized responses (used throughout the call)
+        from app.models.elderly import Elderly
+        elderly = db.query(Elderly).filter(Elderly.id == call.elderly_id).first()
+
+        elderly_context = ""
+        if elderly:
+            elderly_context = f"{elderly.name}"
+            if elderly.age:
+                elderly_context += f", {elderly.age}세"
+            if elderly.health_condition:
+                elderly_context += f", 건강상태: {elderly.health_condition}"
+
+        # Send initial greeting if this is a new call (no existing messages)
+        if not existing_messages:
+
+            # Generate initial greeting from AI
+            logger.info(f"Generating initial greeting for call {call_id}, elderly: {elderly_context}")
+
+            greeting_response = ""
+            response_id = str(uuid.uuid4())
+
+            # Use empty message list with is_greeting=True to get initial greeting
+            async for chunk in claude_service.stream_chat_response(
+                [],
+                elderly_context=elderly_context,
+                is_greeting=True
+            ):
+                if state.closed:
+                    break
+
+                await manager.send_message(state, {
+                    "type": "stream_chunk",
+                    "response_id": response_id,
+                    "role": "assistant",
+                    "content": chunk,
+                })
+                greeting_response += chunk
+
+            if not state.closed and greeting_response:
+                # Save greeting message
+                CallService.save_message(db, call_id, "assistant", greeting_response)
+                messages_list.append({"role": "assistant", "content": greeting_response})
+
+                # Send stream end
+                await manager.send_message(state, {
+                    "type": "stream_end",
+                    "response_id": response_id,
+                    "role": "assistant",
+                    "content": greeting_response,
+                    "is_streaming": False,
+                })
+
+                logger.info(f"Initial greeting sent for call {call_id}: {greeting_response[:50]}...")
+
         # Main message loop
         while not state.closed:
             try:
@@ -290,11 +344,14 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
                     "is_streaming": False,
                 })
 
-                # Stream Claude response
+                # Stream Claude response with elderly context
                 full_response = ""
                 response_id = str(uuid.uuid4())
 
-                async for chunk in claude_service.stream_chat_response(messages_list):
+                async for chunk in claude_service.stream_chat_response(
+                    messages_list,
+                    elderly_context=elderly_context
+                ):
                     if state.closed:
                         break
 
@@ -307,18 +364,54 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
                     full_response += chunk
 
                 if not state.closed and full_response:
-                    # Save assistant response
-                    CallService.save_message(db, call_id, "assistant", full_response)
-                    messages_list.append({"role": "assistant", "content": full_response})
+                    # Check for [CALL_END] marker (AI detected user wants to end call)
+                    call_end_detected = "[CALL_END]" in full_response
+                    clean_response = full_response.replace("[CALL_END]", "").strip()
 
-                    # Send stream end with full content (for TTS)
+                    # Save assistant response (without marker)
+                    CallService.save_message(db, call_id, "assistant", clean_response)
+                    messages_list.append({"role": "assistant", "content": clean_response})
+
+                    # Send stream end with cleaned content (for TTS)
                     await manager.send_message(state, {
                         "type": "stream_end",
                         "response_id": response_id,
                         "role": "assistant",
-                        "content": full_response,
+                        "content": clean_response,
                         "is_streaming": False,
+                        "call_end_detected": call_end_detected,
                     })
+
+                    # Auto-end call if AI detected end intent
+                    if call_end_detected:
+                        logger.info(f"AI detected call end intent for call {call_id}, auto-ending")
+
+                        # Wait briefly for TTS to finish on client
+                        await asyncio.sleep(1.0)
+
+                        # Update call status
+                        db.refresh(call)
+                        if call.status == "in_progress":
+                            call.status = "completed"
+                            call.ended_at = datetime.utcnow()
+                            if call.started_at:
+                                call.duration = int((call.ended_at - call.started_at).total_seconds())
+                            call.is_successful = True
+                            db.commit()
+
+                            # Trigger analysis
+                            from app.tasks.analysis import analyze_call
+                            analyze_call.delay(call_id)
+
+                            # Notify client
+                            await manager.send_message(state, {
+                                "type": "ended",
+                                "call_id": call_id,
+                                "status": "completed",
+                                "auto_ended": True,
+                            })
+
+                        break
 
             # Handle end call (P0: 분석 태스크 트리거 연결)
             elif msg_type == "end_call":
@@ -353,6 +446,24 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
         except Exception:
             pass
     finally:
+        # Update call status if still in_progress (unexpected disconnect or client disconnect)
+        try:
+            db.refresh(call)
+            if call.status == "in_progress":
+                logger.info(f"Call {call_id} ended via disconnect - marking as completed")
+                call.status = "completed"
+                call.ended_at = datetime.utcnow()
+                if call.started_at:
+                    call.duration = int((call.ended_at - call.started_at).total_seconds())
+                call.is_successful = True
+                db.commit()
+
+                # Trigger call analysis
+                from app.tasks.analysis import analyze_call
+                analyze_call.delay(call_id)
+        except Exception as e:
+            logger.error(f"Failed to update call status for {call_id}: {e}")
+
         # Cleanup
         if heartbeat_task:
             heartbeat_task.cancel()

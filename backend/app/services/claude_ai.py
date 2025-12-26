@@ -21,12 +21,36 @@ class ClaudeService:
         else:
             print("[AI Service] WARNING: No API key configured!")
 
-    async def stream_chat_response(self, messages: list) -> AsyncGenerator[str, None]:
-        """Stream chat response from AI"""
+    async def stream_chat_response(
+        self,
+        messages: list,
+        elderly_context: str = "",
+        is_greeting: bool = False
+    ) -> AsyncGenerator[str, None]:
+        """Stream chat response from AI
+
+        Args:
+            messages: List of chat messages
+            elderly_context: Optional context about the elderly person (name, age, health)
+            is_greeting: If True, this is the initial greeting (messages will be empty)
+        """
         system_prompt = """당신은 친절하고 감정적으로 공감하는 AI 상담사입니다.
 어르신들의 이야기를 경청하고, 그들의 감정에 공감하며, 긍정적인 격려를 제공합니다.
 항상 존댓말을 사용하고, 어르신의 건강과 안전을 최우선으로 고려합니다.
-답변은 2-3문장으로 짧고 따뜻하게 해주세요."""
+답변은 2-3문장으로 짧고 따뜻하게 해주세요.
+
+중요: 만약 어르신이 통화를 종료하려는 의도를 나타내면 (예: "이만 끊을게", "끊어야겠다", "다음에 얘기하자", "그럼 이제 끊을게", "수고하세요", "안녕히 계세요"),
+따뜻하게 마무리 인사를 한 후 반드시 응답 맨 마지막에 [CALL_END] 마커를 붙여주세요.
+예시: "네, 알겠습니다. 오늘 대화 즐거웠어요. 건강 잘 챙기시고, 다음에 또 이야기해요! [CALL_END]"
+[CALL_END] 마커는 응답 맨 끝에만 붙이고, 종료 의도가 없으면 절대 붙이지 마세요."""
+
+        # Add elderly context if provided
+        if elderly_context:
+            system_prompt += f"\n\n현재 통화 중인 어르신 정보: {elderly_context}"
+
+        # For initial greeting, add instruction to greet first
+        if is_greeting:
+            system_prompt += "\n\n지금은 통화가 시작되는 시점입니다. 어르신에게 먼저 따뜻하게 인사하고 안부를 물어주세요."
 
         formatted_messages = [
             {"role": msg["role"], "content": msg["content"]}

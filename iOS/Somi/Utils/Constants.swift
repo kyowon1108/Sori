@@ -1,11 +1,11 @@
 import Foundation
 
 struct APIConstants {
-    // Use local network IP for device testing (change to localhost for simulator)
-    static let baseURL = "http://192.168.0.42:8000"
-    static let wsBaseURL = "ws://192.168.0.42:8000"
+    // EC2 deployment URL
+    static let baseURL = "http://52.79.227.179"
+    static let wsBaseURL = "ws://52.79.227.179"
     static let apiTimeout = 30.0
-    static let environment = "development"
+    static let environment = "production"
 }
 
 struct ValidationRules {

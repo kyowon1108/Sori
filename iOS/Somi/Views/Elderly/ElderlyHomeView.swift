@@ -8,6 +8,7 @@ struct ElderlyHomeView: View {
     @State private var showUnpairAlert = false
     @State private var showCallView = false
     @State private var currentCallId: Int?
+    @State private var lastDisplayedCallId: Int?  // Prevent duplicate call detection
     @State private var connectionStatus: ConnectionStatus = .connected
 
     #if DEBUG
@@ -58,6 +59,12 @@ struct ElderlyHomeView: View {
                 if let callId = currentCallId {
                     // Use VoiceCallView for voice-based calls
                     VoiceCallView(callId: callId, isPresented: $showCallView)
+                        .onDisappear {
+                            // Keep lastDisplayedCallId for a short time to prevent re-navigation
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                                lastDisplayedCallId = nil
+                            }
+                        }
                 }
             }
             // Navigation handled via pendingCallId binding from ContentView
@@ -88,7 +95,10 @@ struct ElderlyHomeView: View {
             #if DEBUG
             .onChange(of: pendingCallChecker.pendingCall) { _, newValue in
                 // Auto-navigate to call when pending call is detected
-                if let pendingCall = newValue, pendingCall.status == "scheduled" {
+                // Skip if this call was already displayed (prevents duplicate navigation)
+                if let pendingCall = newValue,
+                   pendingCall.status == "scheduled" || pendingCall.status == "in_progress",
+                   lastDisplayedCallId != pendingCall.call_id {
                     navigateToCall(pendingCall.call_id)
                     pendingCallChecker.clearPendingCall()
                 }
@@ -232,6 +242,7 @@ struct ElderlyHomeView: View {
 
     private func navigateToCall(_ callId: Int) {
         currentCallId = callId
+        lastDisplayedCallId = callId  // Track to prevent duplicate navigation
         showCallView = true
     }
 }

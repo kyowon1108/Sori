@@ -40,6 +40,10 @@ struct VoiceCallView: View {
             }
         }
         .onAppear {
+            // Request permissions first, then start call
+            if viewModel.permissionsMissing {
+                viewModel.requestPermissions()
+            }
             viewModel.startCall(callId: callId)
         }
         .onDisappear {
@@ -55,8 +59,8 @@ struct VoiceCallView: View {
         }
         .onChange(of: viewModel.callState) { _, newState in
             if newState == .ended {
-                // Auto-dismiss after short delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                // Auto-dismiss after short delay (reduced from 1.5s to 0.5s)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     isPresented = false
                 }
             }
@@ -231,22 +235,26 @@ struct VoiceCallView: View {
                     .fill(Color.white.opacity(0.1))
             )
 
-            Button(action: {
-                if viewModel.microphonePermissionGranted && viewModel.speechPermissionGranted {
+            VStack(spacing: 12) {
+                Button(action: {
                     viewModel.requestPermissions()
-                } else {
-                    openSettings()
+                }) {
+                    Text("권한 요청하기")
+                        .font(.headline)
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(12)
                 }
-            }) {
-                Text(viewModel.microphonePermissionGranted && viewModel.speechPermissionGranted
-                     ? "권한 요청하기"
-                     : "설정에서 허용하기")
-                    .font(.headline)
-                    .foregroundColor(.blue)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(12)
+
+                Button(action: {
+                    openSettings()
+                }) {
+                    Text("설정에서 허용하기")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.8))
+                }
             }
             .padding(.horizontal, 32)
 

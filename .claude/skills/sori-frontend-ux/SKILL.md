@@ -2,38 +2,29 @@
 name: sori-frontend-ux
 description: Handles SORI Next.js UI/UX changes for dashboard and elderly flows within frontend/.
 ---
-# 목적/범위
-- `frontend/**` 범위의 UI/UX 변경 (페이지, 레이아웃, 컴포넌트, 상태/API 연동).
-- 주요 대상: `frontend/app/(main)/dashboard/page.tsx`, `frontend/src/components/**`, `frontend/src/services/api.ts`.
+# Purpose
+- `frontend/**` 범위의 UI/UX 변경을 수행한다.
+- 대시보드/어르신 화면의 레이아웃과 상태 흐름을 정리한다.
+
+# Applicability
+- `frontend/app/**`, `frontend/src/components/**`, `frontend/src/services/api.ts` 변경 시.
 
 # Preconditions
 - 변경 대상 화면과 기대 동작이 합의되어 있어야 한다.
 
-# Inputs (필수/선택)
-- 필수: 변경 대상 화면/경로, 기대 동작.
-- 선택: 디자인 레퍼런스, 스크린샷, 관련 API 변경 요약.
-
-# Steps (Plan → Implement → Verify)
-1) Plan: 영향 범위와 재사용 가능한 컴포넌트를 확인한다.
-2) Implement: UI/상태 변경을 `frontend/**` 내에서 구현한다.
-3) Verify: lint/build/e2e를 실행하거나 `sori-ui-verifier-agent`로 검증을 위임한다.
-
 # Commands
 - `cd frontend && npm run lint`
 - `cd frontend && npm run build`
-- `cd frontend && npm run e2e`
-- `cd frontend && npm run e2e -- --update-snapshots`
+
+# Workflow
+1) Plan: 영향 범위와 재사용 가능한 컴포넌트를 확인한다.
+2) Implement: UI/상태 변경을 `frontend/**` 내에서 구현한다.
+3) Verify: lint/build 결과를 기록하고 필요 시 검증 에이전트로 핸드오프한다.
 
 # Expected outputs
 - 변경된 화면 요약과 근거.
 - 실행한 검증 커맨드 결과.
 
-# DoD / AC
-- 변경된 화면이 기대 동작을 충족한다.
-- 콘솔 오류/자산 로드 실패가 없다.
-- 스냅샷 변경은 의도된 경우에만 발생한다.
-
-# Guardrails
-- `frontend/app/(auth)/layout.tsx`는 수정하지 않는다.
-- `frontend/**` 외 영역은 변경하지 않는다.
-- 스냅샷 업데이트는 명시적인 의도가 있을 때만 수행한다.
+# Failure modes & fixes
+- lint/build 실패: 오류 메시지를 기준으로 컴포넌트/타입 수정.
+- E2E 미구성: Playwright 구성 전까지 E2E는 생략하고 사유를 남긴다.

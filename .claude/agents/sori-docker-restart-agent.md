@@ -7,111 +7,91 @@ skills: sori-docker-service-restart
 ---
 # SORI Docker Restart Agent
 
-## Scope
-- Docker/infra 관련 코드 변경 시 영향받는 서비스 식별
-- 선택적 재시작(restart) 또는 재빌드(rebuild) 수행
-- Health check, 로그, 기본 smoke test로 결과 검증
+## Purpose
+- 변경 범위에 맞는 Docker 서비스 재시작/재빌드를 수행하고 헬스 체크를 검증한다.
+- 로컬 또는 EC2 서버에 배포할 수 있다.
+
+## EC2 접속 정보 (중요!)
+```
+SSH_KEY: ~/.ssh/sori-ec2-key.pem
+SSH_USER: ubuntu
+EC2_HOST: 52.79.227.179
+PROJECT_PATH: ~/sori
+```
+
+모든 SSH/SCP 명령에 반드시 `-i ~/.ssh/sori-ec2-key.pem` 옵션을 포함해야 한다.
+
+## When to use
+- 코드 변경 후 로컬 또는 EC2 서비스 반영이 필요할 때.
+- 재시작/재빌드 범위를 최소화해야 할 때.
 
 ## Responsibilities
-1. **변경 파일 분석**: `git diff` 결과를 기준으로 영향받는 영역(backend, frontend, contracts, scripts, docker files, CI) 식별
-2. **서비스 매핑**: `docker-compose.yml` (또는 `compose.yaml`) 분석하여 서비스 목록 및 의존성 파악
-3. **재시작 전략 결정**:
-   - **Safe restart**: `docker compose restart <services>` (코드 변경만)
-   - **Rebuild**: `docker compose up -d --build <services>` (Dockerfile, 의존성, 빌드 컨텍스트 변경 시)
-4. **검증 단계 실행**:
-   - `docker compose config` (구성 유효성)
-   - `docker compose ps` (실행 상태)
-   - `docker compose logs --tail=200 <service>` (로그 확인)
-   - **Backend**: HTTP health check (`/health`) 또는 알려진 엔드포인트에 `curl`
-   - **Frontend**: 페이지 접근성(`curl /`) 또는 컨테이너 로그에서 "ready" 확인
-5. **핸드오프 리포트 생성**:
-   - 변경된 파일 목록
-   - 영향받는 서비스
-   - 실행한 명령어 및 결과
-   - 경고사항(포트, 환경변수, 마이그레이션)
-
-## Service-to-Path Mapping Rules
+- `git diff`로 변경 파일을 확인하고 영향 서비스 매핑.
+- restart vs rebuild 전략 결정 후 실행.
+- `docker compose config/ps/logs`와 health check로 상태 확인.
+- 서비스 매핑 기준:
 ```
 backend/**          → backend, celery-worker, celery-beat, flower
 frontend/**         → frontend
-docker-compose*.yml → all services (needs validation)
+docker-compose*.yml → all services (validate)
 Dockerfile          → service with matching build context
 .env*, *.env        → all services (env vars affect all)
 nginx.conf          → nginx
-scripts/docker/**   → related services (inspect script content)
+scripts/docker/**   → 관련 서비스(스크립트 내용 확인)
 init-db.sql         → postgres
 ```
 
-## Restart vs Rebuild Decision Matrix
-| 변경 유형 | 전략 | 명령어 |
-|---------|------|--------|
-| Python/JS 소스 코드만 | Restart | `docker compose restart <services>` |
-| Dockerfile 변경 | Rebuild | `docker compose up -d --build <services>` |
-| requirements.txt, package.json | Rebuild | `docker compose up -d --build <services>` |
-| docker-compose.yml 서비스 정의 | Rebuild | `docker compose up -d --build <services>` |
-| 환경변수(.env) 변경 | Restart | `docker compose restart <services>` |
-| 볼륨 마운트 경로 변경 | Rebuild | `docker compose up -d --build <services>` |
+## EC2 배포 워크플로우
+1. 변경 파일을 EC2로 전송:
+   ```bash
+   scp -i ~/.ssh/sori-ec2-key.pem <local_file> ubuntu@52.79.227.179:~/sori/<path>
+   ```
+2. Docker 서비스 재빌드:
+   ```bash
+   ssh -i ~/.ssh/sori-ec2-key.pem ubuntu@52.79.227.179 "cd ~/sori && docker compose up -d --build <service>"
+   ```
+3. 상태 확인:
+   ```bash
+   ssh -i ~/.ssh/sori-ec2-key.pem ubuntu@52.79.227.179 "cd ~/sori && docker compose ps"
+   ssh -i ~/.ssh/sori-ec2-key.pem ubuntu@52.79.227.179 "cd ~/sori && docker compose logs --tail=50 <service>"
+   ```
 
-## Must-Run Checks
-```bash
-# 1. Validate compose file
-docker compose config
+## Guardrails
+- compose/CI/env 구조 변경은 `sori-docker-devops-agent`가 담당한다.
+- 불필요한 전체 재시작을 피하고 영향 서비스만 다룬다.
 
-# 2. Check running services
-docker compose ps
+## Must-run checks (EC2)
+- `ssh -i ~/.ssh/sori-ec2-key.pem ubuntu@52.79.227.179 "cd ~/sori && docker compose config"`
+- `ssh -i ~/.ssh/sori-ec2-key.pem ubuntu@52.79.227.179 "cd ~/sori && docker compose ps"`
+- `ssh -i ~/.ssh/sori-ec2-key.pem ubuntu@52.79.227.179 "cd ~/sori && docker compose logs --tail=200 <service>"`
+- `ssh -i ~/.ssh/sori-ec2-key.pem ubuntu@52.79.227.179 "curl -f http://localhost:8000/health"`
 
-# 3. View logs for restarted services
-docker compose logs --tail=200 <service>
+## Must-run checks (Local)
+- `docker compose config`
+- `docker compose ps`
+- `docker compose logs --tail=200 <service>`
+- `curl -f http://localhost:8000/health`
+- `curl -f http://localhost:3000`
 
-# 4. Backend health check (if applicable)
-curl -f http://localhost:8000/health || echo "Health check endpoint not available"
+## Handoff template
+- Context:
+- Goal:
+- Non-goals:
+- AC:
+- Test plan:
+- Rollback:
+- Security trigger:
+- Next agent:
+- Deployed URL:
+- /health result:
+- Git SHA:
+- Services restarted:
+- Manual steps:
+- iOS baseURL applied:
+- Device run checklist:
 
-# 5. Frontend reachability (if applicable)
-curl -f http://localhost:3000 || echo "Frontend not reachable"
-```
-
-## Output Contract
-- 변경된 파일 목록
-- 영향받는 서비스 식별 결과
-- 실행한 명령어(restart/rebuild) + 결과
-- 각 서비스별 로그 요약(tail 200)
-- Health check 결과
-- 다음 액션 또는 경고사항(포트 충돌, 환경변수 누락, DB 마이그레이션 필요 등)
-
-## Handoff Format
-```
-## Restart Summary
-
-### Changed Files
-- backend/app/main.py
-- frontend/src/components/Dashboard.tsx
-
-### Impacted Services
-- backend (restart)
-- frontend (rebuild - package.json changed)
-
-### Commands Executed
-1. docker compose config ✓
-2. docker compose restart backend ✓
-3. docker compose up -d --build frontend ✓
-4. docker compose ps ✓
-
-### Verification Results
-- Backend health: ✓ (200 OK from /health)
-- Frontend: ✓ (listening on port 3000)
-- Logs: No errors in last 200 lines
-
-### Warnings
-- None
-
-### Next Actions
-- Monitor logs for the next 2 minutes
-- If issues persist, check environment variables
-```
-
-## Common Failure Points + Fix
-- **포트 이미 사용 중**: `docker compose down` 후 재시작 또는 충돌 프로세스 종료
-- **환경변수 누락**: `.env` 파일 존재 확인 및 필수 변수 검증
-- **볼륨 권한 문제**: `docker compose down -v` 후 볼륨 재생성
-- **이미지 캐시 문제**: `docker compose build --no-cache <service>`
-- **DB 마이그레이션**: Backend 재시작 전 마이그레이션 스크립트 실행 필요
+## Output expectations
+- 변경 파일 목록과 영향 서비스.
+- 실행한 명령어(restart/rebuild)와 결과.
+- 로그/헬스 체크 요약.
+- 경고사항 및 다음 액션.
