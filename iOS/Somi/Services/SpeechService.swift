@@ -12,7 +12,7 @@ final class SpeechService: NSObject, ObservableObject {
     @Published private(set) var transcribedText = ""
     @Published private(set) var partialText = ""
     @Published private(set) var authorizationStatus: SFSpeechRecognizerAuthorizationStatus = .notDetermined
-    @Published private(set) var microphonePermission: AVAudioSession.RecordPermission = .undetermined
+    @Published private(set) var microphonePermission: AVAudioApplication.recordPermission = .undetermined
 
     // MARK: - Private Properties
 
@@ -36,7 +36,7 @@ final class SpeechService: NSObject, ObservableObject {
 
         // Check initial authorization
         authorizationStatus = SFSpeechRecognizer.authorizationStatus()
-        microphonePermission = AVAudioSession.sharedInstance().recordPermission
+        microphonePermission = AVAudioApplication.shared.recordPermission
     }
 
     // MARK: - Permission Handling
@@ -53,7 +53,7 @@ final class SpeechService: NSObject, ObservableObject {
 
     /// Request microphone permission
     func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
-        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+        AVAudioApplication.requestRecordPermission { [weak self] granted in
             DispatchQueue.main.async {
                 self?.microphonePermission = granted ? .granted : .denied
                 completion(granted)
@@ -120,7 +120,7 @@ final class SpeechService: NSObject, ObservableObject {
     private func startRecognition() throws {
         // Configure audio session
         let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetooth])
+        try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP])
         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
 
         // Create recognition request

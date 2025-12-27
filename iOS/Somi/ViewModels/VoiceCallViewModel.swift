@@ -126,20 +126,21 @@ final class VoiceCallViewModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self = self else { return }
             let autoEnded = notification.userInfo?["auto_ended"] as? Bool ?? false
             print("[VoiceCall] Received callEnded notification, auto_ended: \(autoEnded)")
 
-            if autoEnded {
-                // AI detected end intent, gracefully end call
-                self.stopListening()
-                self.ttsService.stop()
-                self.durationTimer?.invalidate()
-                self.durationTimer = nil
-                self.callState = .ended
+            Task { @MainActor in
+                guard let self = self else { return }
+                if autoEnded {
+                    // AI detected end intent, gracefully end call
+                    self.stopListening()
+                    self.ttsService.stop()
+                    self.durationTimer?.invalidate()
+                    self.durationTimer = nil
+                    self.callState = .ended
 
-                // Disconnect after brief delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    // Disconnect after brief delay
+                    try? await Task.sleep(nanoseconds: 500_000_000)
                     self.webSocketService.disconnect()
                 }
             }
@@ -467,7 +468,8 @@ final class VoiceCallViewModel: ObservableObject {
 
     private func startDurationTimer() {
         durationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            guard let self = self else { return }
+            Task { @MainActor [weak self] in
                 guard let self = self, let startTime = self.callStartTime else { return }
                 self.callDuration = Date().timeIntervalSince(startTime)
             }
