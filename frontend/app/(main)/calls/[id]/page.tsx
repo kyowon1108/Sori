@@ -18,7 +18,7 @@ export default function CallPage({ params }: CallPageProps) {
   useEffect(() => {
     const checkAccess = async () => {
       try {
-        const call = await callsService.getCall(parseInt(id));
+        const call = await callsService.getById(parseInt(id));
 
         // 진행 중인 통화는 상세 페이지 접근 불가
         if (call.status === 'in_progress' || call.status === 'scheduled') {
