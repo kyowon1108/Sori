@@ -87,7 +87,7 @@ export default function LoginForm() {
                 required
                 value={email}
                 onChange={handleEmailChange}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-gray-900 bg-white placeholder:text-gray-400"
                 placeholder="example@email.com"
               />
             </div>
@@ -106,7 +106,7 @@ export default function LoginForm() {
                   required
                   value={password}
                   onChange={handlePasswordChange}
-                  className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                  className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-gray-900 bg-white placeholder:text-gray-400"
                   placeholder="비밀번호 입력"
                 />
                 <button
