@@ -62,7 +62,7 @@ class WebSocketService {
       return;
     }
 
-    const wsBaseUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+    const wsBaseUrl = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8000';
     // Handle potential trailing slash in env var
     const cleanBaseUrl = wsBaseUrl.replace(/\/$/, '');
     this.url = `${cleanBaseUrl}/ws/${this.callId}?token=${token}`;
