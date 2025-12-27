@@ -1,6 +1,6 @@
 'use client';
 
-import { CallAnalysis, RiskLevel, RiskReason } from '@/types/calls';
+import { CallAnalysis, RiskLevel, RiskReason, getRiskLevel, getSentimentFromRiskScore } from '@/types/calls';
 import clsx from 'clsx';
 
 interface CallRiskPanelProps {
@@ -32,32 +32,25 @@ const RISK_CONFIG: Record<RiskLevel, { label: string; bg: string; text: string; 
   },
 };
 
-// 기존 데이터에서 리스크 근거 생성 (백엔드 확장 전까지 사용)
+// 분석 데이터에서 리스크 근거 생성
 function generateRiskReasons(analysis: CallAnalysis): RiskReason[] {
   const reasons: RiskReason[] = [];
+  const riskLevel = getRiskLevel(analysis.risk_score);
 
-  // 감정 점수 기반 근거
-  if (analysis.sentiment_score < 0.4) {
-    reasons.push({ label: '부정적인 감정 표현이 감지되었습니다' });
+  // 리스크 점수 기반 근거
+  if (analysis.risk_score >= 70) {
+    reasons.push({ label: '고위험 상태가 감지되었습니다' });
+  } else if (analysis.risk_score >= 40) {
+    reasons.push({ label: '주의가 필요한 상태입니다' });
   }
 
-  // 감정 상태 기반 근거
-  if (analysis.emotional_state) {
-    const negativeStates = ['우울', '불안', '외로움', '슬픔', '걱정'];
-    if (negativeStates.some(state => analysis.emotional_state?.includes(state))) {
-      reasons.push({ label: `감정 상태: ${analysis.emotional_state}` });
-    }
-  }
-
-  // 건강 언급 기반 근거
-  if (analysis.health_mentions && analysis.health_mentions.length > 0) {
-    analysis.health_mentions.forEach(mention => {
-      reasons.push({ label: `건강 관련: ${mention}` });
-    });
+  // concerns 기반 근거 (백엔드에서 제공)
+  if (analysis.concerns && analysis.concerns.trim()) {
+    reasons.push({ label: analysis.concerns });
   }
 
   // 기본 근거 (reasons이 비어있을 경우)
-  if (reasons.length === 0 && analysis.risk_level !== 'low') {
+  if (reasons.length === 0 && riskLevel !== 'low') {
     reasons.push({ label: '분석 결과 주의가 필요합니다' });
   }
 
@@ -65,7 +58,9 @@ function generateRiskReasons(analysis: CallAnalysis): RiskReason[] {
 }
 
 export default function CallRiskPanel({ analysis, onReasonClick }: CallRiskPanelProps) {
-  const config = RISK_CONFIG[analysis.risk_level];
+  const riskLevel = getRiskLevel(analysis.risk_score);
+  const sentimentScore = getSentimentFromRiskScore(analysis.risk_score);
+  const config = RISK_CONFIG[riskLevel];
   const reasons = analysis.risk_reasons || generateRiskReasons(analysis);
 
   return (
@@ -74,14 +69,14 @@ export default function CallRiskPanel({ analysis, onReasonClick }: CallRiskPanel
         {/* 위험도 아이콘 */}
         <div className={clsx(
           'w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0',
-          analysis.risk_level === 'low' ? 'bg-green-100' :
-          analysis.risk_level === 'medium' ? 'bg-yellow-100' : 'bg-red-100'
+          riskLevel === 'low' ? 'bg-green-100' :
+          riskLevel === 'medium' ? 'bg-yellow-100' : 'bg-red-100'
         )}>
-          {analysis.risk_level === 'low' ? (
+          {riskLevel === 'low' ? (
             <svg className={clsx('w-6 h-6', config.icon)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-          ) : analysis.risk_level === 'medium' ? (
+          ) : riskLevel === 'medium' ? (
             <svg className={clsx('w-6 h-6', config.icon)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
@@ -98,27 +93,27 @@ export default function CallRiskPanel({ analysis, onReasonClick }: CallRiskPanel
             <h3 className="text-sm font-medium text-gray-500">상태/리스크</h3>
             <span className={clsx(
               'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold',
-              analysis.risk_level === 'low' ? 'bg-green-100 text-green-800' :
-              analysis.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+              riskLevel === 'low' ? 'bg-green-100 text-green-800' :
+              riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
             )}>
               {config.label}
             </span>
           </div>
 
-          {/* 감정 점수 바 */}
+          {/* 리스크 점수 바 */}
           <div className="mb-3">
             <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span>감정 점수</span>
-              <span className="font-medium">{(analysis.sentiment_score * 100).toFixed(0)}%</span>
+              <span>리스크 점수</span>
+              <span className="font-medium">{analysis.risk_score}점</span>
             </div>
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className={clsx(
                   'h-full rounded-full transition-all duration-500',
-                  analysis.sentiment_score >= 0.6 ? 'bg-green-500' :
-                  analysis.sentiment_score >= 0.4 ? 'bg-yellow-500' : 'bg-red-500'
+                  analysis.risk_score < 40 ? 'bg-green-500' :
+                  analysis.risk_score < 70 ? 'bg-yellow-500' : 'bg-red-500'
                 )}
-                style={{ width: `${analysis.sentiment_score * 100}%` }}
+                style={{ width: `${analysis.risk_score}%` }}
               />
             </div>
           </div>

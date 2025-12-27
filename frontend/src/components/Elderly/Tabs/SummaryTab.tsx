@@ -5,7 +5,7 @@ import { StatusBadge } from '@/components/Common/Badge';
 import { formatRelativeTime } from '@/utils/dateUtils';
 import { formatScheduleTime } from '@/utils/eventMapper';
 import { Elderly } from '@/types/elderly';
-import { Call } from '@/types/calls';
+import { Call, getRiskLevel } from '@/types/calls';
 
 interface SummaryTabProps {
   elderly: Elderly;
@@ -21,7 +21,7 @@ interface SummaryTabProps {
 export default function SummaryTab({ elderly, recentCalls, connectedDevice }: SummaryTabProps) {
   const lastCall = recentCalls[0];
   const completedCalls = recentCalls.filter(c => c.status === 'completed');
-  const highRiskCalls = recentCalls.filter(c => c.analysis?.risk_level === 'high');
+  const highRiskCalls = recentCalls.filter(c => c.analysis && getRiskLevel(c.analysis.risk_score) === 'high');
 
   return (
     <div className="p-6 space-y-6">

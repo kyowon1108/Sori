@@ -64,22 +64,31 @@ export interface ActionItem {
 }
 
 // ===========================================
-// CallAnalysis
+// CallAnalysis (백엔드 스키마 기준)
 // ===========================================
 export interface CallAnalysis {
   id: number;
   call_id: number;
-  risk_level: RiskLevel;
-  sentiment_score: number;
   summary?: string;
-  key_topics?: string[];
-  recommendations?: string[];
-  health_mentions?: string[];
-  emotional_state?: string;
-  analyzed_at: string;
-  // 확장 필드 (백엔드에서 제공시 사용)
+  risk_score: number; // 0-100
+  concerns?: string;
+  recommendations?: string;
+  created_at: string;
+  // 확장 필드 (프론트엔드에서 파생)
   risk_reasons?: RiskReason[];
   action_items?: ActionItem[];
+}
+
+// risk_score를 risk_level로 변환하는 헬퍼 함수
+export function getRiskLevel(riskScore: number): RiskLevel {
+  if (riskScore >= 70) return 'high';
+  if (riskScore >= 40) return 'medium';
+  return 'low';
+}
+
+// risk_score를 0-1 스케일 감정 점수로 변환 (높은 리스크 = 낮은 감정)
+export function getSentimentFromRiskScore(riskScore: number): number {
+  return 1 - (riskScore / 100);
 }
 
 // ===========================================

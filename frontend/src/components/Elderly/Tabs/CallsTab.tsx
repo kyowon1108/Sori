@@ -5,7 +5,7 @@ import { StatusBadge, RiskBadge } from '@/components/Common/Badge';
 import EmptyState from '@/components/Common/EmptyState';
 import { ListItemSkeleton } from '@/components/Common/Skeleton';
 import { formatRelativeTime, formatDuration, formatLocalDateTime } from '@/utils/dateUtils';
-import { Call } from '@/types/calls';
+import { Call, getRiskLevel } from '@/types/calls';
 
 interface CallsTabProps {
   calls: Call[];
@@ -93,7 +93,7 @@ export default function CallsTab({ calls, loading, elderlyId }: CallsTabProps) {
           <div className="flex items-center">
             <span className="md:hidden text-gray-500 mr-2">분석:</span>
             {call.analysis ? (
-              <RiskBadge level={call.analysis.risk_level} size="sm" />
+              <RiskBadge level={getRiskLevel(call.analysis.risk_score)} size="sm" />
             ) : (
               <span className="text-xs text-gray-400">분석 없음</span>
             )}

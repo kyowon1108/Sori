@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CallAnalysis, ActionItem, ActionPriority } from '@/types/calls';
+import { CallAnalysis, ActionItem, ActionPriority, getRiskLevel } from '@/types/calls';
 import clsx from 'clsx';
 
 interface CallActionItemsProps {
@@ -16,12 +16,13 @@ const PRIORITY_CONFIG: Record<ActionPriority, { label: string; bg: string; text:
   low: { label: '낮음', bg: 'bg-gray-100', text: 'text-gray-700' },
 };
 
-// 기존 데이터에서 액션 아이템 생성 (백엔드 확장 전까지 사용)
+// 분석 데이터에서 액션 아이템 생성
 function generateActionItems(analysis: CallAnalysis, elderlyId: number): ActionItem[] {
   const items: ActionItem[] = [];
+  const riskLevel = getRiskLevel(analysis.risk_score);
 
   // 고위험인 경우
-  if (analysis.risk_level === 'high') {
+  if (riskLevel === 'high') {
     items.push({
       title: '어르신 상태 즉시 확인',
       description: '고위험 상태가 감지되었습니다. 빠른 시일 내 연락하세요.',
@@ -37,7 +38,7 @@ function generateActionItems(analysis: CallAnalysis, elderlyId: number): ActionI
   }
 
   // 중간 위험인 경우
-  if (analysis.risk_level === 'medium') {
+  if (riskLevel === 'medium') {
     items.push({
       title: '어르신 상태 확인 권장',
       description: '주의가 필요한 상태입니다. 안부 확인을 권장합니다.',
@@ -46,23 +47,11 @@ function generateActionItems(analysis: CallAnalysis, elderlyId: number): ActionI
     });
   }
 
-  // recommendations가 있는 경우
-  if (analysis.recommendations && analysis.recommendations.length > 0) {
-    analysis.recommendations.forEach((rec, index) => {
-      items.push({
-        title: rec,
-        priority: index === 0 ? 'med' : 'low',
-      });
-    });
-  }
-
-  // 건강 언급이 있는 경우
-  if (analysis.health_mentions && analysis.health_mentions.length > 0) {
+  // recommendations가 있는 경우 (string)
+  if (analysis.recommendations && analysis.recommendations.trim()) {
     items.push({
-      title: '건강 정보 업데이트',
-      description: '통화에서 언급된 건강 상태를 프로필에 기록하세요.',
+      title: analysis.recommendations,
       priority: 'med',
-      cta: { type: 'open_elderly', targetId: elderlyId },
     });
   }
 

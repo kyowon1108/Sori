@@ -1,4 +1,4 @@
-import { Call, CallStatus, CallAnalysis } from '@/types/calls';
+import { Call, CallStatus, CallAnalysis, getRiskLevel } from '@/types/calls';
 import { Elderly } from '@/types/elderly';
 import { Event, EventType, EventSeverity, ActionNeededItem } from '@/types/events';
 import { EVENT_TYPES } from './constants';
@@ -84,25 +84,26 @@ export function callToEvent(call: Call, elderlyName?: string): Event {
 // ===========================================
 export function analysisToEvent(analysis: CallAnalysis, call: Call, elderlyName?: string): Event {
   const name = elderlyName || call.elderly_name || `어르신 #${call.elderly_id}`;
-  const isHighRisk = analysis.risk_level === 'high';
+  const riskLevel = getRiskLevel(analysis.risk_score);
+  const isHighRisk = riskLevel === 'high';
 
   return {
     id: `analysis-${analysis.id}`,
     type: 'analysis_completed',
     severity: isHighRisk ? 'warning' : 'success',
-    timestamp: analysis.analyzed_at,
+    timestamp: analysis.created_at,
     elderly_id: call.elderly_id,
     elderly_name: name,
     call_id: call.id,
     title: `${name} - 분석 완료`,
-    description: analysis.summary || `위험도: ${analysis.risk_level}`,
+    description: analysis.summary || `리스크 점수: ${analysis.risk_score}`,
     cta: {
       label: '분석 결과 보기',
       href: `/calls/${call.id}`,
     },
     metadata: {
-      risk_level: analysis.risk_level,
-      sentiment_score: analysis.sentiment_score,
+      risk_level: riskLevel,
+      risk_score: analysis.risk_score,
     },
   };
 }

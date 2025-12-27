@@ -25,6 +25,8 @@ import { ChatMessage } from '@/types/calls';
 
 interface ChatViewProps {
   callId: number;
+  /** 읽기 전용 모드 - 보호자 대시보드용. 메시지 입력 및 WebSocket 연결 비활성화 */
+  readOnly?: boolean;
 }
 
 type TabType = 'summary' | 'transcript' | 'meta';
@@ -38,10 +40,11 @@ const TABS: { id: TabType; label: string }[] = [
 const POLL_INTERVAL = 5000; // 5초
 const MAX_POLLS = 12; // 최대 12회 (60초)
 
-export default function ChatView({ callId }: ChatViewProps) {
+export default function ChatView({ callId, readOnly = false }: ChatViewProps) {
   const router = useRouter();
   const { currentCall, clearChatMessages, chatMessages } = useStore();
-  const { sendMessage, status: wsStatus } = useWebSocket(callId);
+  // readOnly 모드에서는 WebSocket 연결하지 않음 (callId를 0으로 전달하여 연결 비활성화)
+  const { sendMessage, status: wsStatus } = useWebSocket(readOnly ? 0 : callId);
   const { fetchById } = useCalls();
   const { fetchById: fetchElderly, currentElderly } = useElderly();
 
@@ -172,7 +175,8 @@ export default function ChatView({ callId }: ChatViewProps) {
   };
 
   const isCallEnded = currentCall?.status === 'completed' || currentCall?.status === 'failed' || currentCall?.status === 'cancelled';
-  const isCallActive = currentCall?.status === 'in_progress';
+  // readOnly 모드에서는 항상 비활성 상태로 처리 (채팅 입력 불가)
+  const isCallActive = !readOnly && currentCall?.status === 'in_progress';
   const hasAnalysis = !!currentCall?.analysis;
   const callTime = currentCall?.started_at || currentCall?.scheduled_for || currentCall?.created_at;
 
@@ -237,8 +241,19 @@ export default function ChatView({ callId }: ChatViewProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* WebSocket 상태 (진행 중인 통화 모니터링용) */}
-            {isCallActive && (
+            {/* readOnly 모드 표시 */}
+            {readOnly && (
+              <div className="flex items-center gap-2 text-sm px-3 py-1 bg-gray-100 rounded-full">
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span className="text-gray-600">읽기 전용</span>
+              </div>
+            )}
+
+            {/* WebSocket 상태 (진행 중인 통화 모니터링용 - readOnly 모드에서는 표시 안함) */}
+            {isCallActive && !readOnly && (
               <div className="flex items-center gap-2 text-sm">
                 <span
                   className={clsx(
@@ -277,8 +292,8 @@ export default function ChatView({ callId }: ChatViewProps) {
         </div>
       )}
 
-      {/* 통화 종료 후: 탭 기반 UI */}
-      {isCallEnded && (
+      {/* 통화 종료 후 또는 readOnly 모드: 탭 기반 UI */}
+      {(isCallEnded || readOnly) && (
         <>
           {/* 탭 네비게이션 */}
           <div className="flex-shrink-0 bg-white border-b border-gray-200">
@@ -396,20 +411,20 @@ export default function ChatView({ callId }: ChatViewProps) {
                     </div>
                   </div>
 
-                  {hasAnalysis && currentCall?.analysis?.analyzed_at && (
+                  {hasAnalysis && currentCall?.analysis?.created_at && (
                     <div className="pt-4 border-t border-gray-100">
                       <h4 className="text-sm font-medium text-gray-500 mb-2">분석 정보</h4>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <dt className="text-gray-500">분석 시각</dt>
                           <dd className="font-medium text-gray-900">
-                            {format(parseISO(currentCall.analysis.analyzed_at), 'yyyy-MM-dd HH:mm:ss', { locale: ko })}
+                            {format(parseISO(currentCall.analysis.created_at), 'yyyy-MM-dd HH:mm:ss', { locale: ko })}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-gray-500">감정 점수</dt>
+                          <dt className="text-gray-500">리스크 점수</dt>
                           <dd className="font-medium text-gray-900">
-                            {(currentCall.analysis.sentiment_score * 100).toFixed(0)}%
+                            {currentCall.analysis.risk_score}점
                           </dd>
                         </div>
                       </div>

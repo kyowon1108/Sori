@@ -10,7 +10,7 @@ import { TableSkeleton } from '@/components/Common/Skeleton';
 import EmptyState from '@/components/Common/EmptyState';
 import { CALL_STATUS, TRIGGER_TYPES, EMPTY_STATES } from '@/utils/constants';
 import { formatRelativeTime } from '@/utils/eventMapper';
-import { Call, CallStatus } from '@/types/calls';
+import { Call, CallStatus, getRiskLevel } from '@/types/calls';
 import { format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import clsx from 'clsx';
@@ -195,7 +195,7 @@ export default function CallsListPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {call.analysis ? (
                           <div className="flex items-center gap-2">
-                            <RiskBadge level={call.analysis.risk_level} size="sm" />
+                            <RiskBadge level={getRiskLevel(call.analysis.risk_score)} size="sm" />
                             {call.analysis.summary && (
                               <span className="text-sm text-gray-500 truncate max-w-[200px]">
                                 {call.analysis.summary}
