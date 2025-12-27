@@ -94,12 +94,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000
-        NEXT_PUBLIC_WS_URL: ws://localhost:8000
+        # 빈 값 = 상대 경로 사용 (nginx 프록시 통해 /api/* -> backend)
+        NEXT_PUBLIC_API_URL: ""
+        NEXT_PUBLIC_WS_URL: ""
     container_name: sori-frontend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+      NEXT_PUBLIC_API_URL: ""
+      NEXT_PUBLIC_WS_URL: ""
     ports:
       - "3000:3000"
     depends_on:

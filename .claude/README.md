@@ -1,5 +1,16 @@
 # SORI Claude Routing
 
+## EC2 Server Info
+- **URL**: `http://52.79.227.179`
+- **Backend API**: `http://52.79.227.179:8000`
+- **SSH**: `ssh -i ~/.ssh/sori-ec2-key.pem ubuntu@52.79.227.179`
+- **Project Path**: `/home/ubuntu/sori`
+
+## Test Accounts
+| Role | Email | Password |
+| --- | --- | --- |
+| Caregiver (보호자) | `test@sori.com` | `Test1234` |
+
 ## Agent Directory
 - `sori-backend-agent`: FastAPI/WS/Celery 변경과 최소 WS 계약 규율.
 - `sori-frontend-agent`: Next.js UI/UX 변경 및 검증 핸드오프.
@@ -14,6 +25,7 @@
 - `sori-security-agent`: 보안 민감 변경 리뷰.
 - `sori-realtime-agent`: WS 라이프사이클/스트리밍/하트비트 불변식.
 - `sori-aws-ec2-deploy-agent`: AWS EC2 배포 및 iOS 실기기 검증.
+- `sori-docs-report-agent`: 작업 완료 리포트 생성 및 docs 전용 커밋 준비.
 
 ## Routing Playbook
 | 시나리오 | 주 에이전트 | 후속/의존 |
@@ -27,6 +39,7 @@
 | Docker 서비스 재시작/재빌드 | `sori-docker-restart-agent` | `sori-integration-qa-agent` |
 | 보안 민감 변경 | `sori-security-agent` | 도메인 에이전트 + `sori-integration-qa-agent` |
 | AWS EC2 배포 | `sori-aws-ec2-deploy-agent` | `sori-integration-qa-agent` |
+| 모든 작업 완료 후 | `sori-docs-report-agent` | 없음 |
 
 ## E2E Examples
 1) 대시보드 UI 변경
