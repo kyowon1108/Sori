@@ -104,16 +104,13 @@ async def get_pending_call(
     time_window_end = now + timedelta(minutes=60)
 
     # Query for pending calls:
-    # - Manual calls that are in_progress
+    # - Any in_progress calls (caregiver-initiated or voice)
     # - OR Auto scheduled calls within time window
     pending_call = db.query(Call).filter(
         Call.elderly_id == elderly_id,
         or_(
-            # Manual in-progress calls (caregiver-initiated)
-            and_(
-                Call.call_type == "manual",
-                Call.status == "in_progress"
-            ),
+            # Any in-progress calls (caregiver-initiated, voice, manual)
+            Call.status == "in_progress",
             # Auto scheduled calls within time window
             and_(
                 Call.trigger_type == "auto",
@@ -123,7 +120,7 @@ async def get_pending_call(
             )
         )
     ).order_by(
-        # Prioritize in_progress manual calls, then by scheduled time
+        # Prioritize in_progress calls, then by scheduled time
         Call.status.desc(),
         Call.scheduled_for.asc()
     ).first()

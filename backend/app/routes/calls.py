@@ -9,7 +9,7 @@ from app.schemas.response import success_response
 from app.services.calls import CallService
 from app.services.claude_ai import ClaudeService
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ForbiddenError
 
 router = APIRouter()
 claude_service = ClaudeService()
@@ -42,8 +42,13 @@ async def get_call(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """통화 상세 조회 (메시지 + 분석)"""
+    """통화 상세 조회 (메시지 + 분석) - 완료된 통화만"""
     call = CallService.get_by_id(db, call_id, current_user.id)
+
+    # 진행 중이거나 예정된 통화는 상세 조회 불가
+    if call.status in ("in_progress", "scheduled"):
+        raise ForbiddenError("진행 중인 통화의 상세 정보는 조회할 수 없습니다")
+
     return success_response(
         data=CallDetailResponse.model_validate(call).model_dump(),
         message="OK",

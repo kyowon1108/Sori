@@ -77,9 +77,9 @@ class CallService:
     def save_analysis(db: Session, call_id: int, analysis_data: dict):
         analysis = CallAnalysis(
             call_id=call_id,
-            risk_level=analysis_data.get("risk_level", "low"),
-            sentiment_score=analysis_data.get("sentiment_score", 0.0),
             summary=analysis_data.get("summary"),
+            risk_score=analysis_data.get("risk_score", 0),
+            concerns=analysis_data.get("concerns"),
             recommendations=analysis_data.get("recommendations")
         )
         db.add(analysis)

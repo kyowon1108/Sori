@@ -17,11 +17,11 @@ class MessageResponse(BaseModel):
 class CallAnalysisResponse(BaseModel):
     id: int
     call_id: int
-    risk_level: str
-    sentiment_score: float
     summary: Optional[str] = None
-    recommendations: Optional[List[str]] = None
-    analyzed_at: datetime
+    risk_score: int = 0  # 0-100
+    concerns: Optional[str] = None
+    recommendations: Optional[str] = None
+    created_at: datetime
 
     class Config:
         from_attributes = True

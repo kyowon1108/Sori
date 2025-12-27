@@ -11,9 +11,9 @@ struct ChatMessage: Codable, Identifiable {
 // WebSocket 메시지
 struct WSMessage: Codable {
     let type: String
-    let content: String?
-    let role: String?
-    let is_streaming: Bool?
-    let auto_ended: Bool?           // 서버에서 AI가 종료 의도 감지 시 true
-    let call_end_detected: Bool?    // stream_end에서 종료 의도 감지 여부
+    var content: String? = nil
+    var role: String? = nil
+    var is_streaming: Bool? = nil
+    var auto_ended: Bool? = nil           // 서버에서 AI가 종료 의도 감지 시 true
+    var call_end_detected: Bool? = nil    // stream_end에서 종료 의도 감지 여부
 }

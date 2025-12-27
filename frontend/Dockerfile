@@ -8,9 +8,9 @@ RUN npm ci
 
 COPY . .
 
-# 환경 변수 (빌드 시)
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
-ARG NEXT_PUBLIC_WS_URL=ws://localhost:8000
+# 환경 변수 (빌드 시) - 빈 값이면 상대 경로 사용 (nginx 프록시)
+ARG NEXT_PUBLIC_API_URL=
+ARG NEXT_PUBLIC_WS_URL=
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 
