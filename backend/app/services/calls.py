@@ -54,7 +54,11 @@ class CallService:
         call = CallService.get_by_id(db, call_id, caregiver_id)
 
         call.ended_at = datetime.now(timezone.utc)
-        call.duration = int((call.ended_at - call.started_at).total_seconds())
+        # Handle timezone-naive started_at from DB
+        started_at = call.started_at
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        call.duration = int((call.ended_at - started_at).total_seconds())
         call.status = "completed"
 
         db.add(call)
