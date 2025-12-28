@@ -24,7 +24,7 @@ export const callsService = {
   },
 
   async startCall(elderly_id: number, call_type: string = 'voice'): Promise<Call> {
-    const response = await apiClient.getClient().post('/api/calls/start', {
+    const response = await apiClient.getClient().post('/api/calls', {
       elderly_id,
       call_type,
     });
@@ -32,7 +32,7 @@ export const callsService = {
   },
 
   async endCall(id: number): Promise<Call> {
-    const response = await apiClient.getClient().post(`/api/calls/${id}/end`);
+    const response = await apiClient.getClient().put(`/api/calls/${id}/end`);
     return response.data.data;
   },
 };

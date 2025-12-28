@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.database import Base
 
@@ -27,7 +27,7 @@ class Call(Base):
     is_successful = Column(Boolean, default=True)
 
     # 메타데이터
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # 관계
     elderly = relationship("Elderly", back_populates="calls")

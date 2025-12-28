@@ -10,7 +10,7 @@ from app.models.call import Call
 from app.models.message import Message
 from app.models.call_analysis import CallAnalysis
 from app.models.elderly import Elderly
-from app.services.claude_ai import ClaudeService
+from app.services.ai_service import AIService
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +60,13 @@ def analyze_call(call_id: int):
 
         # Run analysis
         try:
-            claude_service = ClaudeService()
-            analysis_result = claude_service.analyze_conversation(
+            ai_service = AIService()
+            analysis_result = ai_service.analyze_conversation(
                 conversation=conversation_text,
                 elderly_context=elderly_context,
             )
         except Exception as e:
-            logger.error(f"Claude analysis failed for call {call_id}: {e}")
+            logger.error(f"AI analysis failed for call {call_id}: {e}")
             return {"status": "error", "message": str(e)}
 
         # Create analysis record

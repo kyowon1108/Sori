@@ -9,6 +9,7 @@ from app.core.logging import setup_logging, get_logger
 from app.core.exceptions import APIError
 from app.database import engine, Base
 from app.routes import auth, elderly, calls, websocket, pairing, pairing_public, device
+from app.routes import websocket_v2  # Agent SDK version
 
 # 로깅 설정
 logger = setup_logging()
@@ -93,6 +94,7 @@ app.include_router(pairing.router, prefix="/api/elderly", tags=["pairing"])
 app.include_router(pairing_public.router, prefix="/api/pairing", tags=["pairing"])
 app.include_router(calls.router, prefix="/api/calls", tags=["calls"])
 app.include_router(websocket.router, tags=["websocket"])
+app.include_router(websocket_v2.router, tags=["websocket-v2"])  # Agent SDK version
 app.include_router(device.router, prefix="/api/device", tags=["device"])
 
 logger.info("All routers registered")

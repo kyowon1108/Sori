@@ -9,6 +9,7 @@ import { useCalls } from '@/hooks/useCalls';
 import { useElderly } from '@/hooks/useElderly';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
+import { AgentStatus, TypingIndicator } from './AgentStatus';
 import { StatusBadge } from '@/components/Common/Badge';
 import {
   CallReportSummary,
@@ -42,7 +43,15 @@ const MAX_POLLS = 12; // 최대 12회 (60초)
 
 export default function ChatView({ callId, readOnly = false }: ChatViewProps) {
   const router = useRouter();
-  const { currentCall, clearChatMessages, chatMessages } = useStore();
+  const {
+    currentCall,
+    clearChatMessages,
+    chatMessages,
+    agentPhase,
+    isAgentProcessing,
+    toolExecutions,
+    resetAgentStatus,
+  } = useStore();
   // readOnly 모드에서는 WebSocket 연결하지 않음 (callId를 0으로 전달하여 연결 비활성화)
   const { sendMessage, status: wsStatus } = useWebSocket(readOnly ? 0 : callId);
   const { fetchById } = useCalls();
@@ -64,11 +73,12 @@ export default function ChatView({ callId, readOnly = false }: ChatViewProps) {
     fetchById(callId);
     return () => {
       clearChatMessages();
+      resetAgentStatus();
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [callId, fetchById, clearChatMessages]);
+  }, [callId, fetchById, clearChatMessages, resetAgentStatus]);
 
   // 어르신 정보 가져오기
   useEffect(() => {
@@ -286,6 +296,25 @@ export default function ChatView({ callId, readOnly = false }: ChatViewProps) {
           <div className="flex-1 overflow-hidden">
             <MessageList />
           </div>
+
+          {/* Agent Status - 에이전트 처리 상태 표시 */}
+          {(isAgentProcessing || toolExecutions.length > 0) && (
+            <div className="flex-shrink-0 px-4 py-2 border-t border-gray-100 bg-gray-50">
+              <AgentStatus
+                currentPhase={agentPhase}
+                toolExecutions={toolExecutions}
+                isProcessing={isAgentProcessing}
+              />
+            </div>
+          )}
+
+          {/* Typing Indicator - AI 응답 작성 중 표시 */}
+          {isAgentProcessing && agentPhase === 'act' && (
+            <div className="flex-shrink-0 px-4 py-2">
+              <TypingIndicator />
+            </div>
+          )}
+
           <div className="flex-shrink-0 border-t border-gray-200">
             <MessageInput onSend={handleSendMessage} disabled={false} />
           </div>

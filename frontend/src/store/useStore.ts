@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from '@/types/auth';
 import { Elderly } from '@/types/elderly';
-import { Call } from '@/types/calls';
+import { Call, AgentPhase, ToolExecution } from '@/types/calls';
 
 interface StoreState {
   // Auth
@@ -22,6 +22,11 @@ interface StoreState {
   callsList: Call[];
   callsLoading: boolean;
   chatMessages: Array<{ role: string; content: string; is_streaming?: boolean }>;
+
+  // Agent Status
+  agentPhase: AgentPhase | null;
+  isAgentProcessing: boolean;
+  toolExecutions: ToolExecution[];
 
   // UI
   sidebarOpen: boolean;
@@ -43,6 +48,14 @@ interface StoreState {
   addChatMessage: (message: { role: string; content: string; is_streaming?: boolean }) => void;
   setChatMessages: (messages: Array<{ role: string; content: string; is_streaming?: boolean }>) => void;
   clearChatMessages: () => void;
+
+  // Agent Status Actions
+  setAgentPhase: (phase: AgentPhase | null) => void;
+  setAgentProcessing: (processing: boolean) => void;
+  addToolExecution: (tool: ToolExecution) => void;
+  updateToolExecution: (id: string, updates: Partial<ToolExecution>) => void;
+  clearToolExecutions: () => void;
+  resetAgentStatus: () => void;
 
   setSidebarOpen: (open: boolean) => void;
   setError: (error: string | null) => void;
@@ -68,6 +81,11 @@ export const useStore = create<StoreState>()(
       callsList: [],
       callsLoading: false,
       chatMessages: [],
+
+      // Agent Status initial state
+      agentPhase: null,
+      isAgentProcessing: false,
+      toolExecutions: [],
 
       // UI initial state
       sidebarOpen: true,
@@ -106,6 +124,27 @@ export const useStore = create<StoreState>()(
         })),
       setChatMessages: (messages) => set({ chatMessages: messages }),
       clearChatMessages: () => set({ chatMessages: [] }),
+
+      // Agent Status actions
+      setAgentPhase: (phase) => set({ agentPhase: phase }),
+      setAgentProcessing: (processing) => set({ isAgentProcessing: processing }),
+      addToolExecution: (tool) =>
+        set((state) => ({
+          toolExecutions: [...state.toolExecutions, tool],
+        })),
+      updateToolExecution: (id, updates) =>
+        set((state) => ({
+          toolExecutions: state.toolExecutions.map((tool) =>
+            tool.id === id ? { ...tool, ...updates } : tool
+          ),
+        })),
+      clearToolExecutions: () => set({ toolExecutions: [] }),
+      resetAgentStatus: () =>
+        set({
+          agentPhase: null,
+          isAgentProcessing: false,
+          toolExecutions: [],
+        }),
 
       // UI actions
       setSidebarOpen: (open) => set({ sidebarOpen: open }),

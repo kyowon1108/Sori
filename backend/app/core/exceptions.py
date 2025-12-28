@@ -34,8 +34,8 @@ class NotFoundError(APIError):
 
 
 class ForbiddenError(APIError):
-    def __init__(self):
-        super().__init__(status.HTTP_403_FORBIDDEN, "이 작업을 수행할 권한이 없습니다")
+    def __init__(self, message: str = "이 작업을 수행할 권한이 없습니다"):
+        super().__init__(status.HTTP_403_FORBIDDEN, message)
 
 
 # Pairing code errors

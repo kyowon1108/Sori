@@ -7,12 +7,12 @@ from app.models.user import User
 from app.schemas.call import CallCreateRequest, CallStartResponse, CallDetailResponse, CallListResponse, CallAnalysisResponse
 from app.schemas.response import success_response
 from app.services.calls import CallService
-from app.services.claude_ai import ClaudeService
+from app.services.ai_service import AIService
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ForbiddenError
 
 router = APIRouter()
-claude_service = ClaudeService()
+ai_service = AIService()
 
 
 @router.get("")
@@ -99,7 +99,7 @@ async def end_call(
             for m in call.messages
         ]
         try:
-            analysis_result = claude_service.analyze_call(messages_list)
+            analysis_result = ai_service.analyze_call(messages_list)
             CallService.save_analysis(db, call_id, analysis_result)
         except Exception:
             # 분석 실패해도 통화 종료는 성공

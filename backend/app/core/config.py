@@ -21,11 +21,19 @@ class Settings(BaseSettings):
     PAIRING_CODE_MAX_ATTEMPTS: int = 5
     DEVICE_TOKEN_EXPIRE_DAYS: int = 90
 
-    # Claude API
+    # OpenAI API (primary)
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o"  # 또는 gpt-4o-mini for cost efficiency
+
+    # Claude API (legacy fallback, optional)
     CLAUDE_API_KEY: str = ""
 
-    # OpenAI API
-    OPENAI_API_KEY: str = ""
+    # Agent Configuration
+    AGENT_MAX_TOKENS: int = 4096
+    AGENT_MAX_RETRIES: int = 3
+    AGENT_QUALITY_THRESHOLD: float = 0.7
+    AGENT_ENABLE_REFLECTION: bool = True
+    AGENT_TEMPERATURE: float = 0.7
 
     # CORS
     FRONTEND_URL: str = "http://localhost:3000"

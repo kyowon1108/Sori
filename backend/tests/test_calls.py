@@ -88,7 +88,7 @@ class TestCallsList:
 
 class TestCallsGet:
     def test_get_call_success(self, client, auth_headers):
-        """통화 상세 조회 성공"""
+        """통화 상세 조회 성공 (완료된 통화)"""
         # 어르신 등록 및 통화 시작
         elderly_resp = client.post("/api/elderly", headers=auth_headers, json={"name": "홍길동"})
         elderly_id = elderly_resp.json()["data"]["id"]
@@ -99,11 +99,30 @@ class TestCallsGet:
         })
         call_id = call_resp.json()["data"]["id"]
 
+        # 통화 종료 (상세 조회는 완료된 통화만 가능)
+        client.put(f"/api/calls/{call_id}/end", headers=auth_headers)
+
         response = client.get(f"/api/calls/{call_id}", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["id"] == call_id
         assert data["data"]["elderly_id"] == elderly_id
+
+    def test_get_call_in_progress_forbidden(self, client, auth_headers):
+        """진행 중인 통화 상세 조회 거부"""
+        # 어르신 등록 및 통화 시작
+        elderly_resp = client.post("/api/elderly", headers=auth_headers, json={"name": "홍길동"})
+        elderly_id = elderly_resp.json()["data"]["id"]
+
+        call_resp = client.post("/api/calls", headers=auth_headers, json={
+            "elderly_id": elderly_id,
+            "call_type": "voice"
+        })
+        call_id = call_resp.json()["data"]["id"]
+
+        # 진행 중인 통화는 상세 조회 불가
+        response = client.get(f"/api/calls/{call_id}", headers=auth_headers)
+        assert response.status_code == 403
 
     def test_get_call_not_found(self, client, auth_headers):
         """존재하지 않는 통화 조회"""

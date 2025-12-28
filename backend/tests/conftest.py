@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # 테스트 환경 변수 설정
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
-os.environ["CLAUDE_API_KEY"] = "test-api-key"
+os.environ["OPENAI_API_KEY"] = "test-openai-api-key"
 os.environ["ENVIRONMENT"] = "testing"
 
 from fastapi.testclient import TestClient
@@ -94,3 +94,71 @@ def test_elderly_data():
         "emergency_contact": "010-9876-5432",
         "notes": "Prefers morning calls"
     }
+
+
+# Agent testing fixtures
+@pytest.fixture
+def agent_config():
+    """Basic agent configuration for testing."""
+    from app.services.agents import AgentConfig
+    return AgentConfig(
+        model="gpt-4o",
+        max_tokens=1024,
+        max_retries=2,
+        quality_threshold=0.6,
+        enable_reflection=True,
+        temperature=0.7,
+    )
+
+
+@pytest.fixture
+def conversation_context():
+    """Sample conversation context for testing."""
+    from app.services.agents import ConversationContext
+    return ConversationContext(
+        conversation_id="test_call_123",
+        elderly_id=1,
+        elderly_name="김영희",
+        elderly_age=75,
+        health_condition="고혈압, 당뇨",
+        medications=["혈압약", "당뇨약"],
+        call_id=123,
+    )
+
+
+@pytest.fixture
+def mock_openai_response():
+    """Mock OpenAI API response for streaming."""
+    class MockChoice:
+        def __init__(self, content=None, finish_reason=None):
+            self.delta = type('Delta', (), {'content': content, 'tool_calls': None})()
+            self.finish_reason = finish_reason
+
+    class MockChunk:
+        def __init__(self, content=None, finish_reason=None):
+            self.choices = [MockChoice(content, finish_reason)]
+
+    return MockChunk
+
+
+@pytest.fixture
+def mock_openai_client(mock_openai_response):
+    """Mock AsyncOpenAI client for testing without API calls."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def mock_stream():
+        chunks = [
+            mock_openai_response("안녕"),
+            mock_openai_response("하세요, "),
+            mock_openai_response("김영희님!"),
+            mock_openai_response(None, "stop"),
+        ]
+        for chunk in chunks:
+            yield chunk
+
+    client = MagicMock()
+    client.chat = MagicMock()
+    client.chat.completions = MagicMock()
+    client.chat.completions.create = AsyncMock(return_value=mock_stream())
+
+    return client

@@ -1,7 +1,7 @@
 ---
 name: sori-docs-agent
 description: Generates implementation docs from current SORI code with path-based citations.
-tools: shell_command, apply_patch
+tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 skills: sori-docs-generator
 ---
@@ -27,6 +27,16 @@ skills: sori-docs-generator
 ## Must-run checks
 - `mkdir -p docs`
 - `ls -la docs`
+
+## File Creation Instructions
+파일 생성 시 반드시 `cat > filepath << 'EOF'` 형식의 Bash 명령어를 사용해야 한다:
+```bash
+cat > docs/example.md << 'EOF'
+# Document Title
+Content here...
+EOF
+```
+Write/Edit 도구는 사용 불가하므로, 모든 파일 생성은 shell_command(Bash)로 수행한다.
 
 ## Handoff template
 - Context:

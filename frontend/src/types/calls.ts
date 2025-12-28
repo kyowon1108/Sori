@@ -137,3 +137,98 @@ export interface CallListResponse {
   skip: number;
   limit: number;
 }
+
+// ===========================================
+// Agent Phase (에이전트 처리 단계)
+// ===========================================
+export type AgentPhase = 'perceive' | 'plan' | 'act' | 'reflect' | 'complete' | 'error';
+
+export interface AgentPhaseInfo {
+  phase: AgentPhase;
+  label: string;
+  description: string;
+}
+
+export const AGENT_PHASES: Record<AgentPhase, AgentPhaseInfo> = {
+  perceive: {
+    phase: 'perceive',
+    label: '인식',
+    description: '사용자 입력 분석 중...',
+  },
+  plan: {
+    phase: 'plan',
+    label: '계획',
+    description: '응답 전략 수립 중...',
+  },
+  act: {
+    phase: 'act',
+    label: '응답',
+    description: '응답 생성 중...',
+  },
+  reflect: {
+    phase: 'reflect',
+    label: '평가',
+    description: '응답 품질 평가 중...',
+  },
+  complete: {
+    phase: 'complete',
+    label: '완료',
+    description: '응답 완료',
+  },
+  error: {
+    phase: 'error',
+    label: '오류',
+    description: '처리 중 오류 발생',
+  },
+};
+
+// ===========================================
+// Tool Execution Status (도구 실행 상태)
+// ===========================================
+export type ToolStatus = 'pending' | 'executing' | 'completed' | 'failed';
+
+export interface ToolExecution {
+  id: string;
+  toolName: string;
+  displayName: string;
+  status: ToolStatus;
+  input?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  startedAt?: string;
+  completedAt?: string;
+  error?: string;
+}
+
+export const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  end_call: '통화 종료',
+  get_elderly_info: '어르신 정보 조회',
+  check_health_status: '건강 상태 확인',
+  schedule_followup: '후속 조치 예약',
+  notify_caregiver: '보호자 알림',
+};
+
+// ===========================================
+// WebSocket Agent Events (에이전트 관련 WS 이벤트)
+// ===========================================
+export interface AgentPhaseEvent {
+  type: 'agent_phase';
+  phase: AgentPhase;
+  details?: Record<string, unknown>;
+}
+
+export interface ToolExecutionEvent {
+  type: 'tool_execution';
+  tool: ToolExecution;
+}
+
+export interface EvaluationEvent {
+  type: 'evaluation';
+  overall_score: number;
+  should_retry: boolean;
+  dimensions: {
+    relevance: number;
+    empathy: number;
+    safety: number;
+    completeness: number;
+  };
+}

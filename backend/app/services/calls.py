@@ -1,5 +1,5 @@
-from sqlalchemy.orm import Session
-from datetime import datetime
+from sqlalchemy.orm import Session, joinedload
+from datetime import datetime, timezone
 from app.models.call import Call
 from app.models.message import Message
 from app.models.call_analysis import CallAnalysis
@@ -20,7 +20,7 @@ class CallService:
         new_call = Call(
             elderly_id=call_data.elderly_id,
             call_type=call_data.call_type,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
             status="in_progress"
         )
         db.add(new_call)
@@ -31,7 +31,9 @@ class CallService:
 
     @staticmethod
     def get_list(db: Session, caregiver_id: int, elderly_id: int = None, skip: int = 0, limit: int = 10):
-        query = db.query(Call).join(Elderly).filter(Elderly.caregiver_id == caregiver_id)
+        query = db.query(Call).join(Elderly).options(
+            joinedload(Call.analysis)
+        ).filter(Elderly.caregiver_id == caregiver_id)
 
         if elderly_id:
             query = query.filter(Call.elderly_id == elderly_id)
@@ -51,7 +53,7 @@ class CallService:
     def end_call(db: Session, call_id: int, caregiver_id: int):
         call = CallService.get_by_id(db, call_id, caregiver_id)
 
-        call.ended_at = datetime.utcnow()
+        call.ended_at = datetime.now(timezone.utc)
         call.duration = int((call.ended_at - call.started_at).total_seconds())
         call.status = "completed"
 

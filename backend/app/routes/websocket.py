@@ -5,7 +5,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import OrderedDict
 from typing import Optional, Set
 
@@ -15,12 +15,12 @@ from app.database import SessionLocal
 from app.core.security import verify_token
 from app.models.call import Call
 from app.models.message import Message
-from app.services.claude_ai import ClaudeService
+from app.services.ai_service import AIService
 from app.services.calls import CallService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-claude_service = ClaudeService()
+ai_service = AIService()
 
 # Configuration
 HEARTBEAT_INTERVAL = 30  # seconds
@@ -57,7 +57,7 @@ class ConnectionState:
     def __init__(self, websocket: WebSocket, call_id: int):
         self.websocket = websocket
         self.call_id = call_id
-        self.last_pong: datetime = datetime.utcnow()
+        self.last_pong: datetime = datetime.now(timezone.utc)
         self.seen_messages: LRUSet = LRUSet()
         self.lock: asyncio.Lock = asyncio.Lock()
         self.closed: bool = False
@@ -111,7 +111,7 @@ async def heartbeat_loop(state: ConnectionState):
                 break
 
             # Check if last pong is too old
-            elapsed = (datetime.utcnow() - state.last_pong).total_seconds()
+            elapsed = (datetime.now(timezone.utc) - state.last_pong).total_seconds()
             if elapsed > HEARTBEAT_INTERVAL + HEARTBEAT_TIMEOUT:
                 logger.warning(f"Heartbeat timeout for call_id={state.call_id}")
                 state.closed = True
@@ -124,7 +124,7 @@ async def heartbeat_loop(state: ConnectionState):
             # Send ping
             await manager.send_message(state, {
                 "type": "ping",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             })
 
         except asyncio.CancelledError:
@@ -173,7 +173,7 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
                 from app.models.elderly_device import ElderlyDevice
                 device = db.query(ElderlyDevice).filter(ElderlyDevice.id == device_id).first()
                 if device:
-                    device.last_used_at = datetime.utcnow()
+                    device.last_used_at = datetime.now(timezone.utc)
                     db.commit()
 
         elif scope == "caregiver":
@@ -196,7 +196,7 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
         # Update call status from pending/scheduled to in_progress
         if call.status in ("pending", "scheduled"):
             call.status = "in_progress"
-            call.started_at = datetime.utcnow()
+            call.started_at = datetime.now(timezone.utc)
             db.commit()
 
         # Connect and start heartbeat
@@ -244,7 +244,7 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
             response_id = str(uuid.uuid4())
 
             # Use empty message list with is_greeting=True to get initial greeting
-            async for chunk in claude_service.stream_chat_response(
+            async for chunk in ai_service.stream_chat_response(
                 [],
                 elderly_context=elderly_context,
                 is_greeting=True
@@ -298,14 +298,14 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
 
             # Handle pong response
             if msg_type == "pong":
-                state.last_pong = datetime.utcnow()
+                state.last_pong = datetime.now(timezone.utc)
                 continue
 
             # Handle ping from client
             if msg_type == "ping":
                 await manager.send_message(state, {
                     "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
                 continue
 
@@ -348,7 +348,7 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
                 full_response = ""
                 response_id = str(uuid.uuid4())
 
-                async for chunk in claude_service.stream_chat_response(
+                async for chunk in ai_service.stream_chat_response(
                     messages_list,
                     elderly_context=elderly_context
                 ):
@@ -393,9 +393,11 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
                         db.refresh(call)
                         if call.status == "in_progress":
                             call.status = "completed"
-                            call.ended_at = datetime.utcnow()
+                            call.ended_at = datetime.now(timezone.utc)
                             if call.started_at:
-                                call.duration = int((call.ended_at - call.started_at).total_seconds())
+                                # Handle naive datetime from DB
+                                started = call.started_at if call.started_at.tzinfo else call.started_at.replace(tzinfo=timezone.utc)
+                                call.duration = int((call.ended_at - started).total_seconds())
                             call.is_successful = True
                             db.commit()
 
@@ -419,9 +421,11 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
                 db.refresh(call)
                 if call.status == "in_progress":
                     call.status = "completed"
-                    call.ended_at = datetime.utcnow()
+                    call.ended_at = datetime.now(timezone.utc)
                     if call.started_at:
-                        call.duration = int((call.ended_at - call.started_at).total_seconds())
+                        # Handle naive datetime from DB
+                        started = call.started_at if call.started_at.tzinfo else call.started_at.replace(tzinfo=timezone.utc)
+                        call.duration = int((call.ended_at - started).total_seconds())
                     call.is_successful = True
                     db.commit()
 
@@ -452,9 +456,11 @@ async def websocket_endpoint(websocket: WebSocket, call_id: int, token: str = Qu
             if call.status == "in_progress":
                 logger.info(f"Call {call_id} ended via disconnect - marking as completed")
                 call.status = "completed"
-                call.ended_at = datetime.utcnow()
+                call.ended_at = datetime.now(timezone.utc)
                 if call.started_at:
-                    call.duration = int((call.ended_at - call.started_at).total_seconds())
+                    # Handle naive datetime from DB
+                    started = call.started_at if call.started_at.tzinfo else call.started_at.replace(tzinfo=timezone.utc)
+                    call.duration = int((call.ended_at - started).total_seconds())
                 call.is_successful = True
                 db.commit()
 

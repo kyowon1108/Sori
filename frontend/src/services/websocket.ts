@@ -1,4 +1,5 @@
 import { useStore } from '@/store/useStore';
+import { AgentPhase } from '@/types/calls';
 
 type WebSocketMessage = {
   type: string;
@@ -135,6 +136,58 @@ class WebSocketService {
           content: data.content,
           is_streaming: false,
         }));
+        return;
+      }
+
+      // Handle agent phase updates
+      if (data.type === 'agent_phase') {
+        const store = useStore.getState();
+        store.setAgentPhase(data.phase as AgentPhase);
+        if (data.phase === 'perceive' || data.phase === 'plan') {
+          store.setAgentProcessing(true);
+        } else if (data.phase === 'complete' || data.phase === 'error') {
+          store.setAgentProcessing(false);
+          // Clear tool executions after completion
+          setTimeout(() => store.clearToolExecutions(), 2000);
+        }
+        return;
+      }
+
+      // Handle tool execution updates
+      if (data.type === 'tool_execution') {
+        const store = useStore.getState();
+        const tool = data.tool as {
+          id: string;
+          toolName: string;
+          status: string;
+          [key: string]: unknown;
+        };
+
+        if (tool.status === 'pending' || tool.status === 'executing') {
+          // Check if tool already exists
+          const existing = store.toolExecutions.find(t => t.id === tool.id);
+          if (existing) {
+            store.updateToolExecution(tool.id, {
+              status: tool.status as 'pending' | 'executing' | 'completed' | 'failed',
+            });
+          } else {
+            store.addToolExecution({
+              id: tool.id,
+              toolName: tool.toolName,
+              displayName: tool.displayName as string || tool.toolName,
+              status: tool.status as 'pending' | 'executing' | 'completed' | 'failed',
+              startedAt: new Date().toISOString(),
+            });
+          }
+        } else {
+          // Update existing tool with result
+          store.updateToolExecution(tool.id, {
+            status: tool.status as 'pending' | 'executing' | 'completed' | 'failed',
+            result: tool.result as Record<string, unknown>,
+            completedAt: new Date().toISOString(),
+            error: tool.error as string | undefined,
+          });
+        }
         return;
       }
 

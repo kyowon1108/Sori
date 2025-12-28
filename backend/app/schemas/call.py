@@ -62,11 +62,14 @@ class CallListResponse(BaseModel):
     id: int
     elderly_id: int
     call_type: str
-    started_at: datetime
+    trigger_type: str = "auto"
+    scheduled_for: Optional[datetime] = None
+    started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     duration: Optional[int] = None
     status: str
     is_successful: bool
+    analysis: Optional[CallAnalysisResponse] = None
     created_at: datetime
 
     class Config:
