@@ -25,7 +25,7 @@ skills: sori-voicecall-ios
 - API baseURL 변경은 로컬 검증용이며 커밋하지 않는다.
 
 ## Must-run checks
-- `xcodebuild -list -project iOS/Somi.xcodeproj`
+- `xcodebuild -list -project iOS/Sori.xcodeproj`
 
 ## Handoff template
 - Context:

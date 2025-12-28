@@ -6,14 +6,14 @@ description: Handles SORI iOS VoiceCall flow updates, TTS/STT, and WS client han
 - iOS VoiceCall 흐름과 TTS/STT, WS 클라이언트 처리를 관리한다.
 
 # Applicability
-- `iOS/Somi/**`, `iOS/Somi.xcodeproj` 변경 시.
+- `iOS/Sori/**`, `iOS/Sori.xcodeproj` 변경 시.
 
 # Preconditions
 - 변경 대상 화면/플로우와 기대 동작이 합의되어 있어야 한다.
 - REST/WS 계약 변경 여부를 사전에 확인해야 한다.
 
 # Commands
-- `xcodebuild -list -project iOS/Somi.xcodeproj`
+- `xcodebuild -list -project iOS/Sori.xcodeproj`
 
 # Workflow
 1) Plan: VoiceCallView/VoiceCallViewModel, APIService 영향 범위를 확인한다.
