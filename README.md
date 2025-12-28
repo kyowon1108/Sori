@@ -17,11 +17,60 @@
 - **위험도 모니터링** - AI가 분석한 감정/건강 상태 알림
 - **실시간 알림** - 고위험 감지 시 즉시 알림
 
-### AI 분석
-- **실시간 대화** - OpenAI GPT-4o-mini 기반 공감 대화 (Claude 3.5 Sonnet 폴백)
-- **위험도 평가** - 0-100점 위험 점수 자동 산출
-- **대화 요약** - 주요 내용 및 우려사항 자동 정리
-- **통화 종료 감지** - AI가 자연스러운 대화 종료 의도 파악
+### AI 분석 시스템
+
+#### Multi-Agent AI Architecture
+SORI는 **Perceive-Plan-Act-Reflect** 루프 기반의 다중 에이전트 AI 시스템을 사용합니다.
+
+**Core Components**:
+- **OpenAI Agent Service** (`backend/app/services/agents/openai_agent.py`)
+  - GPT-4o 기반 메인 대화 엔진
+  - Function Calling을 통한 도구 사용
+  - 스트리밍 응답 지원
+  - 자동 품질 평가 및 재시도
+
+- **Orchestrator Agent** (`backend/app/services/agents/orchestrator.py`)
+  - 병렬 워커 조정 및 실행
+  - 의도 분석 및 우선순위 결정
+  - 도구 추천 및 응답 가이드 생성
+
+- **Specialized Workers** (`backend/app/services/agents/workers/`)
+  - `HealthMonitorWorker` - 건강 상태 모니터링
+  - `EmotionSupportWorker` - 감정 지원 및 우울감 감지
+  - `ScheduleWorker` - 일정 및 약물 복용 관리
+
+- **Evaluator Agent** (`backend/app/services/agents/evaluator.py`)
+  - 응답 품질 자동 평가 (정확성, 공감, 관련성, 안전성)
+  - 재시도 전략 결정
+  - LLM 기반 평가 및 휴리스틱 검증
+
+**Tool System** (`backend/app/services/tools/`):
+- `ToolRegistry` - OpenAI Function Calling 통합
+- `get_elderly_info` - 어르신 정보 조회
+- `get_schedule` - 일정 정보 조회
+- `detect_call_end` - 통화 종료 의도 감지
+
+**Skill System** (`backend/app/skills/`):
+- `health_monitoring` - 건강 모니터링 스킬
+- `emotional_support` - 감정 지원 스킬
+- `emergency` - 긴급 상황 대응
+- `voice_commands` - 음성 명령 처리
+
+**WebSocket V2** (`backend/app/routes/websocket_v2.py`):
+- Perceive-Plan-Act-Reflect 루프 적용
+- 자동 통화 종료 감지
+- Heartbeat 및 연결 관리
+- Message deduplication
+- 스트리밍 청크 전송
+
+#### Legacy AI Service
+기존 GPT-4o-mini/Claude 3.5 Sonnet 기반 단순 대화 시스템도 지원합니다 (`backend/app/services/ai_service.py`).
+
+**주요 기능**:
+- 실시간 대화 (스트리밍)
+- 위험도 평가 (0-100점)
+- 대화 요약 및 우려사항 분석
+- 통화 종료 의도 자동 감지 (`[CALL_END]` 마커)
 
 ## 기술 스택
 
@@ -33,7 +82,7 @@
 | Redis | 7 | Celery 브로커 및 캐시 |
 | Celery | 5.3.4 | 비동기 작업 처리 (스케줄링, 푸시 알림) |
 | SQLAlchemy | 2.0.23 | ORM |
-| OpenAI API | - | AI 대화 및 분석 (GPT-4o-mini) |
+| OpenAI API | - | AI 대화 및 분석 (GPT-4o, GPT-4o-mini) |
 | Anthropic API | - | AI 폴백 (Claude 3.5 Sonnet) |
 | Firebase Admin | 6.2.0 | FCM 푸시 알림 |
 
@@ -68,46 +117,66 @@
 
 ```
 HUSS/
-├── backend/                 # FastAPI 백엔드
+├── backend/                    # FastAPI 백엔드
 │   ├── app/
-│   │   ├── core/           # 설정, 보안, 예외처리
-│   │   ├── models/         # SQLAlchemy 모델
-│   │   ├── routes/         # API 엔드포인트
-│   │   ├── schemas/        # Pydantic 스키마
-│   │   ├── services/       # 비즈니스 로직
-│   │   └── tasks/          # Celery 태스크
+│   │   ├── core/              # 설정, 보안, 예외처리
+│   │   ├── models/            # SQLAlchemy 모델
+│   │   ├── routes/            # API 엔드포인트
+│   │   │   ├── websocket.py       # Legacy WebSocket
+│   │   │   └── websocket_v2.py    # Multi-Agent WebSocket
+│   │   ├── schemas/           # Pydantic 스키마
+│   │   ├── services/          # 비즈니스 로직
+│   │   │   ├── ai_service.py      # Legacy AI Service
+│   │   │   ├── agents/            # Multi-Agent System
+│   │   │   │   ├── openai_agent.py
+│   │   │   │   ├── orchestrator.py
+│   │   │   │   ├── evaluator.py
+│   │   │   │   └── workers/
+│   │   │   └── tools/             # OpenAI Function Tools
+│   │   ├── skills/            # Skill Modules
+│   │   │   ├── health_monitoring/
+│   │   │   ├── emotional_support/
+│   │   │   ├── emergency/
+│   │   │   └── voice_commands/
+│   │   └── tasks/             # Celery 태스크
 │   ├── Dockerfile
 │   └── requirements.txt
 │
-├── frontend/               # Next.js 프론트엔드
-│   ├── app/               # App Router 페이지
+├── frontend/                  # Next.js 프론트엔드
+│   ├── app/                  # App Router 페이지
 │   ├── src/
-│   │   ├── components/    # React 컴포넌트
-│   │   ├── hooks/         # 커스텀 훅
-│   │   ├── services/      # API 서비스
-│   │   ├── store/         # Zustand 스토어
-│   │   └── types/         # TypeScript 타입
+│   │   ├── components/       # React 컴포넌트
+│   │   ├── hooks/            # 커스텀 훅
+│   │   ├── services/         # API 서비스
+│   │   ├── store/            # Zustand 스토어
+│   │   └── types/            # TypeScript 타입
 │   ├── Dockerfile
 │   └── package.json
 │
-├── ios/                    # iOS 앱 (SwiftUI)
-│   └── Somi/
-│       ├── Models/        # 데이터 모델
-│       ├── Views/         # SwiftUI 뷰
-│       ├── ViewModels/    # MVVM 뷰모델
-│       ├── Services/      # 네트워크, TTS, STT 서비스
-│       └── Utils/         # 유틸리티
+├── iOS/                       # iOS 앱 (SwiftUI)
+│   └── Sori/
+│       ├── Models/           # 데이터 모델
+│       ├── Views/            # SwiftUI 뷰
+│       ├── ViewModels/       # MVVM 뷰모델
+│       ├── Services/         # 네트워크, TTS, STT 서비스
+│       └── Utils/            # 유틸리티
 │
-├── contracts/              # API 계약 명세
+├── contracts/                 # API 계약 명세
 │   ├── openapi.snapshot.json
 │   └── ws.messages.md
 │
-├── docs/                   # 문서
+├── docs/                      # 문서
+│   ├── README.md
+│   ├── changelog-2024-12-28.md
+│   ├── call-testing-guide.md
+│   ├── backend/
+│   ├── frontend/
+│   └── ios/
 │
-├── docker-compose.yml      # 개발 환경 설정
-├── docker-compose.prod.yml # 프로덕션 설정
-├── init-db.sql            # 데이터베이스 초기화
-└── nginx.conf             # Nginx 설정
+├── docker-compose.yml         # 개발 환경 설정
+├── docker-compose.prod.yml    # 프로덕션 설정
+├── init-db.sql               # 데이터베이스 초기화
+└── nginx.conf                # Nginx 설정
 ```
 
 ## 시작하기
@@ -213,18 +282,31 @@ docker-compose down
 
 ### WebSocket
 ```
-WS /ws/{call_id}?token=... - 실시간 채팅
+# Legacy WebSocket (GPT-4o-mini/Claude)
+WS /ws/{call_id}?token=...
+
+# Multi-Agent WebSocket (GPT-4o + Workers)
+WS /ws/v2/{call_id}?token=...
 ```
+
+**WebSocket 메시지 타입**:
+- `message` - 사용자 메시지
+- `stream_chunk` - AI 응답 청크 (스트리밍)
+- `stream_end` - 스트리밍 완료
+- `agent_phase` - 에이전트 처리 단계 (perceive/plan/act/reflect)
+- `tool_call` - 도구 호출 정보
+- `ended` - 통화 종료
+- `ping`/`pong` - Heartbeat
 
 ## iOS 앱 설정
 
 ### Xcode 프로젝트 열기
 ```bash
-open ios/Somi.xcodeproj
+open iOS/Sori.xcodeproj
 ```
 
 ### 서버 URL 설정
-`ios/Somi/Utils/Constants.swift`:
+`iOS/Sori/Utils/Constants.swift`:
 ```swift
 struct API {
     static let baseURL = "http://localhost:8000"  // 시뮬레이터
@@ -263,6 +345,25 @@ struct API {
 | 71-90 | 고위험 | 즉시 확인 필요 |
 | 91-100 | 위험 | 긴급 조치 필요 |
 
+## 최근 업데이트 (2024-12-28)
+
+### 새로운 기능
+- **Multi-Agent AI System** - Perceive-Plan-Act-Reflect 루프 기반 대화 시스템
+- **WebSocket V2** - 개선된 연결 관리 및 에이전트 통합
+- **Tool System** - OpenAI Function Calling 통합
+- **Skill System** - 모듈화된 스킬 아키텍처
+- **Quality Evaluation** - 자동 응답 품질 평가 및 재시도
+
+### 버그 수정
+- **Race Condition 수정** - 통화 접근 제어 개선 (`backend/app/routes/calls.py`)
+- **Datetime Deprecation** - Python 3.12+ 호환성 (`datetime.now(timezone.utc)`)
+- **API Endpoint 수정** - Frontend 통화 API 엔드포인트 정정
+- **TypeScript 타입** - 누락된 import 추가
+
+### 참고 문서
+- `docs/changelog-2024-12-28.md` - 상세 변경 내역
+- `docs/call-testing-guide.md` - 통화 테스트 가이드
+
 ## 개발 현황
 
 ### 완료
@@ -271,6 +372,8 @@ struct API {
 - [x] 통화 스케줄 관리 (JSONB)
 - [x] 실시간 WebSocket 채팅
 - [x] AI 대화 (OpenAI/Claude)
+- [x] Multi-Agent AI System (GPT-4o)
+- [x] Tool & Skill Architecture
 - [x] 대화 분석 및 위험도 평가
 - [x] 6자리 페어링 코드 시스템 (해시, TTL)
 - [x] iOS 음성 통화 (TTS/STT)
@@ -290,6 +393,49 @@ struct API {
 - [ ] 음성 감정 분석
 - [ ] 가족 그룹 기능
 - [ ] 건강 지표 추적
+- [ ] Advanced Tool System (데이터베이스 쿼리, 외부 API 통합)
+
+## 테스트
+
+### Backend Tests
+```bash
+cd backend
+pytest -v
+```
+
+**주요 테스트 파일**:
+- `tests/test_auth.py` - 인증 테스트
+- `tests/test_calls.py` - 통화 API 테스트
+- `tests/test_elderly.py` - 어르신 관리 테스트
+- `tests/test_ws_contract.py` - WebSocket 계약 테스트
+- `tests/test_agents.py` - Multi-Agent 시스템 테스트
+- `tests/test_tools.py` - Tool Registry 테스트
+- `tests/test_orchestrator.py` - Orchestrator 테스트
+
+### Frontend Tests
+```bash
+cd frontend
+npm test
+```
+
+## 배포
+
+### Production (AWS EC2)
+```bash
+# 서버 접속
+ssh ubuntu@52.79.227.179
+
+# 코드 업데이트 (로컬에서)
+rsync -avz backend/ ubuntu@52.79.227.179:~/sori/backend/
+rsync -avz frontend/ ubuntu@52.79.227.179:~/sori/frontend/
+
+# Docker 재시작 (EC2에서)
+cd ~/sori
+docker compose -f docker-compose.prod.yml up -d --build
+
+# 헬스체크
+curl http://52.79.227.179:8000/health
+```
 
 ## 테스트 계정
 
@@ -297,6 +443,10 @@ struct API {
 |------|--------|----------|
 | 보호자 | `test@sori.com` | `Test1234` |
 
+## 기여
+
+이 프로젝트는 교육 목적(HUSS University Project)으로 만들어졌습니다.
+
 ## 라이선스
 
-This project is for educational purposes (HUSS University Project).
+MIT License - 교육 목적 프로젝트

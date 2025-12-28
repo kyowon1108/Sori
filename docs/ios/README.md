@@ -1,7 +1,8 @@
 # iOS Documentation
 
-**Generated**: 2024-12-28
-**Source**: `iOS/Somi/**`
+**Generated**: 2024-12-28  
+**Source**: `iOS/Sori/**`  
+**Project**: Sori (renamed from Somi)
 
 ## Overview
 
@@ -10,8 +11,8 @@ SwiftUI-based iOS app for elderly users to receive AI care calls.
 ## Project Structure
 
 ```
-iOS/Somi/
-├── SomiApp.swift           # App entry point
+iOS/Sori/
+├── SoriApp.swift           # App entry point
 ├── Models/                 # Data models
 ├── Views/                  # SwiftUI views
 ├── ViewModels/            # View models
@@ -22,7 +23,7 @@ iOS/Somi/
 ## Key Components
 
 ### App Entry
-**File**: `iOS/Somi/SomiApp.swift`
+**File**: `iOS/Sori/SoriApp.swift`
 
 SwiftUI app lifecycle with AppDelegate for push notifications.
 
@@ -59,11 +60,27 @@ SwiftUI app lifecycle with AppDelegate for push notifications.
 
 ## Configuration
 
-**File**: `iOS/Somi/Utils/Constants.swift`
+**File**: `iOS/Sori/Utils/Constants.swift`
 
 - API base URL
 - WebSocket URL
 - App configuration
+
+## Recent Changes (2024-12-28)
+
+### iOS 17+ API Updates
+Fixed deprecated AVAudioSession APIs:
+
+**File**: Likely in `Services/SpeechService.swift` or `Services/TTSService.swift`
+
+- Migrated from deprecated AVAudioSession methods to iOS 17+ compatible APIs
+- **Commit**: `0d2a565 fix(iOS): update deprecated AVAudioSession APIs for iOS 17+`
+
+## Notes
+
+- Project renamed from "Somi" to "Sori"
+- iOS directory structure updated to reflect new name
+- Compatible with iOS 17+
 
 ---
 **Note**: All paths relative to project root
