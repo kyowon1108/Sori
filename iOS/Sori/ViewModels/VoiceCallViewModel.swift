@@ -162,6 +162,12 @@ final class VoiceCallViewModel: ObservableObject {
         self.callId = callId
         callState = .connecting
 
+        // Clear previous call state
+        messages.removeAll()
+        currentStreamingMessageId = nil
+        streamedContent = ""
+        partialTranscript = ""
+
         guard let token = pairingService.getDeviceToken() else {
             callState = .error("인증 정보가 없습니다")
             return
@@ -357,32 +363,24 @@ final class VoiceCallViewModel: ObservableObject {
         case other
     }
 
-    /// Message type tracking from WebSocket service
-    /// Uses internal flag set by WebSocketService's handleWSMessage
-    private var lastMessageWasStreamChunk = false
-    private var lastMessageWasHistory = false
-
     private func detectMessageType(_ message: ChatMessage) -> MessageType {
-        // V2 endpoint sends clear message types via WSMessage.type
-        // The ChatMessage we receive has been converted, so we need to
-        // track the type through the WebSocket handling flow
-
-        // For streaming: small chunks followed by stream_end
-        // stream_chunk messages are typically small pieces
-        if message.content.count < 50 && message.role == "assistant" {
-            // Could be a stream chunk
-            if currentStreamingMessageId != nil || lastMessageWasStreamChunk {
-                return .streamChunk
-            }
+        // Use the messageType field passed from WebSocketService
+        guard let wsType = message.messageType else {
+            return .fullMessage
         }
 
-        // History messages don't need TTS
-        if lastMessageWasHistory {
-            lastMessageWasHistory = false
+        switch wsType {
+        case "history":
             return .history
+        case "stream_chunk":
+            return .streamChunk
+        case "stream_end":
+            return .streamEnd
+        case "message", "assistant":
+            return .fullMessage
+        default:
+            return .other
         }
-
-        return .fullMessage
     }
 
     // MARK: - TTS

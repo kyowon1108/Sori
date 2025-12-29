@@ -6,6 +6,7 @@ struct ChatMessage: Codable, Identifiable {
     let role: String  // "user", "assistant"
     let content: String
     let created_at: String
+    var messageType: String? = nil  // WebSocket message type: "history", "stream_chunk", "stream_end", "message"
 }
 
 /// WebSocket message types from backend

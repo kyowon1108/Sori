@@ -304,7 +304,8 @@ final class WebSocketService: NSObject, URLSessionWebSocketDelegate {
             call_id: currentCallId ?? 0,
             role: role,
             content: content,
-            created_at: ISO8601DateFormatter().string(from: Date())
+            created_at: ISO8601DateFormatter().string(from: Date()),
+            messageType: wsMessage.type
         )
     }
 
